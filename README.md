@@ -4,25 +4,16 @@ Ntfy.jl is a tiny Julia client for publishing notifications to [ntfy.sh](https:/
 It exposes a single function, `ntfy(topic, message; kwargs...)`, that mirrors the
 HTTP headers supported in the examples below.
 
-## Installation
-
-Add the package directly from the repository directory:
-
-```julia
-using Pkg
-Pkg.activate(".")
-Pkg.instantiate()
-```
-
 ## API
 
 ```julia
-ntfy(topic, message; priority=nothing, title=nothing, tags=nothing,
-    click=nothing, attach=nothing, actions=nothing, email=nothing)
+ntfy(topic, message; base_url="https://ntfy.sh/", priority=nothing, title=nothing,
+    tags=nothing, click=nothing, attach=nothing, actions=nothing, email=nothing)
 ```
 
 Keyword arguments correspond to the documented ntfy headers:
 
+- `base_url`: Override the base URL (defaults to `https://ntfy.sh/`).
 - `priority`: Notification priority (e.g. `"urgent"`).
 - `title`: Notification title.
 - `tags`: Comma-separated tag string or vector of tag strings.
@@ -53,4 +44,7 @@ ntfy(
     actions = ["http, Open door, https://api.nest.com/open/yAxkasd, clear=true"],
     email = "phil@example.com",
 )
+
+# Publish to a self-hosted instance
+ntfy("mytopic", "Self-hosted message"; base_url = "https://ntfy.example.com/")
 ```

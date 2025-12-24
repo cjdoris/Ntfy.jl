@@ -1,6 +1,6 @@
 name = "Ntfy"
 uuid = "5f0dce69-7f6a-49fd-9c5d-0e3f99e56bfc"
-authors = ["OpenAI Assistant"]
+authors = []
 version = "0.1.0"
 
 [deps]

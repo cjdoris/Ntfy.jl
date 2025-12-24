@@ -37,4 +37,10 @@ using Ntfy: ntfy_request
     headers3 = Dict(req3.headers)
     @test headers3["Actions"] == "http, Open door, https://api.nest.com/open/yAxkasd, clear=true"
     @test length(req3.headers) == 1
+
+    req4 = ntfy_request("alt", "hello"; base_url = "https://ntfy.example.com")
+    @test req4.url == "https://ntfy.example.com/alt"
+
+    req5 = ntfy_request("another", "hey"; base_url = "https://ntfy.example.com/")
+    @test req5.url == "https://ntfy.example.com/another"
 end
