@@ -3,7 +3,7 @@ using Ntfy
 
 @testset "ntfy_request" begin
     @testset "defaults" begin
-        req = ntfy_request("mytopic", "Backup successful 😀")
+        req = Ntfy.ntfy_request("mytopic", "Backup successful 😀")
         @test req.method == "POST"
         @test req.url == "https://ntfy.sh/mytopic"
         @test req.headers == Pair{String,String}[]
@@ -11,7 +11,7 @@ using Ntfy
     end
 
     @testset "headers" begin
-        req = ntfy_request(
+        req = Ntfy.ntfy_request(
             "phil_alerts",
             "Remote access detected. Act right away.";
             priority = "urgent",
@@ -42,19 +42,19 @@ using Ntfy
     end
 
     @testset "base url" begin
-        req = ntfy_request("/nested/topic", "hi"; base_url = "https://example.com/")
+        req = Ntfy.ntfy_request("/nested/topic", "hi"; base_url = "https://example.com/")
         @test req.url == "https://example.com/nested/topic"
     end
 
     @testset "extra headers vector" begin
-        req = ntfy_request("topic", "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"])
+        req = Ntfy.ntfy_request("topic", "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"])
         @test req.headers == ["X-One" => "1", "X-Two" => "2"]
     end
 
     @testset "invalid types" begin
-        @test_throws ErrorException ntfy_request(123, "msg")
-        @test_throws ErrorException ntfy_request("topic", 456)
-        @test_throws ErrorException ntfy_request("topic", "msg"; extra_headers = ["bad"])
-        @test_throws ErrorException ntfy_request("topic", "msg"; base_url = 123)
+        @test_throws ErrorException Ntfy.ntfy_request(123, "msg")
+        @test_throws ErrorException Ntfy.ntfy_request("topic", 456)
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; extra_headers = ["bad"])
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; base_url = 123)
     end
 end

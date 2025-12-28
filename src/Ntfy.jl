@@ -1,6 +1,6 @@
 module Ntfy
 
-export ntfy, ntfy_request
+export ntfy
 
 using Downloads
 

@@ -43,5 +43,3 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 
 Raises an error if the server does not return a 2xx response. Returns the `Downloads.Response` object on success.
 
-### `ntfy_request(topic, message; kwargs...)`
-Internal helper that prepares the HTTP request. It returns a named tuple containing the HTTP method, URL, headers, and body without issuing any network calls. Accepts the same keywords as `ntfy`.
