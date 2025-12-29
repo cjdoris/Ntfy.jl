@@ -70,8 +70,10 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
     if email !== nothing
         push!(headers, "X-Email" => normalise_email(email)::String)
     end
-    if markdown
+    if markdown === true
         push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
+    elseif markdown !== false && markdown !== nothing
+        normalise_markdown(markdown)
     end
 
     append!(headers, normalise_extra_headers(extra_headers))
@@ -176,7 +178,7 @@ normalise_base_url(::Nothing) = DEFAULT_BASE_URL
 normalise_base_url(::Any) = error("Unsupported base_url type")
 function normalise_base_url(url::AbstractString)
     url_str = convert(String, url)
-    return isempty(url_str) ? error("base_url cannot be empty") : rstrip(url_str, "/")
+    return isempty(url_str) ? error("base_url cannot be empty") : String(rstrip(url_str, '/'))
 end
 
 """
@@ -202,8 +204,8 @@ function normalise_extra_headers(headers::AbstractVector)
 end
 
 function build_url(base_url::AbstractString, topic::AbstractString)
-    stripped = rstrip(base_url, "/")
-    return string(stripped, "/", lstrip(topic, "/"))
+    stripped = rstrip(base_url, '/')
+    return string(stripped, "/", lstrip(topic, '/'))
 end
 
 end # module
