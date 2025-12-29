@@ -152,7 +152,7 @@ Convert `value` to an actions header string.
 normalise_actions(::Any) = error("Unsupported actions type")
 normalise_actions(actions::AbstractString) = convert(String, actions)
 function normalise_actions(actions::AbstractVector)
-    return join([convert(String, action) for action in actions], ", ")
+    return join([convert(String, action) for action in actions], "; ")
 end
 
 """

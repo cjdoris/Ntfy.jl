@@ -38,7 +38,9 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `tags`: Comma-separated string or vector of tags.
 - `click`: URL to open when the notification is clicked.
 - `attach`: URL of an attachment.
-- `actions`: Actions definition string or vector (e.g. HTTP action buttons).
+- `actions`: Actions definition string or vector (e.g. HTTP action buttons). When provided as a
+  vector, each entry is treated as a separate action definition and combined with semicolons in
+  the `X-Actions` header.
 - `email`: Forward notification to an email address.
 - `delay`: Delivery time string (sent as the `X-Delay` header) to schedule a notification (e.g. `"30m"`, `"tomorrow, 10am"`).
 - `markdown`: Set to `true` to enable Markdown rendering in supported clients.
