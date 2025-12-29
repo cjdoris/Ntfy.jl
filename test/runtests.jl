@@ -26,17 +26,18 @@ using Ntfy
                 "clear=true",
             ],
             email = "phil@example.com",
-            markdown = true,
+            delay = "tomorrow, 10am",
             extra_headers = Dict("X-Test" => "yes"),
         )
         expected_headers = [
-            "X-Priority" => "urgent",
-            "X-Title" => "Unauthorized access detected",
-            "X-Tags" => "warning,skull",
-            "X-Click" => "https://home.nest.com/",
-            "X-Attach" => "https://nest.com/view/yAxkasd.jpg",
-            "X-Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
-            "X-Email" => "phil@example.com",
+            "Priority" => "urgent",
+            "Title" => "Unauthorized access detected",
+            "Tags" => "warning,skull",
+            "Click" => "https://home.nest.com/",
+            "Attach" => "https://nest.com/view/yAxkasd.jpg",
+            "Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
+            "Email" => "phil@example.com",
+            "X-Delay" => "tomorrow, 10am",
             "X-Markdown" => "yes",
             "X-Test" => "yes",
         ]
@@ -58,11 +59,18 @@ using Ntfy
         @test req.headers == ["X-One" => "1", "X-Two" => "2"]
     end
 
+    @testset "delay" begin
+        req = Ntfy.ntfy_request("reminders", "Drink water"; delay = "30m")
+        @test req.headers == ["X-Delay" => "30m"]
+    end
+
     @testset "invalid types" begin
         @test_throws ErrorException Ntfy.ntfy_request(123, "msg")
         @test_throws ErrorException Ntfy.ntfy_request("topic", 456)
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; extra_headers = ["bad"])
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; base_url = 123)
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; delay = "")
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; delay = 123)
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; markdown = "yes")
     end
 end

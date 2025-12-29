@@ -8,7 +8,7 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, markdown=nothing,
+        attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
@@ -16,11 +16,11 @@ settings correspond to the headers supported by ntfy.sh. Raises an error if the
 response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, markdown=nothing,
+        attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
     req = ntfy_request(topic, message; priority=priority, title=title, tags=tags,
-        click=click, attach=attach, actions=actions, email=email, markdown=markdown,
-        extra_headers=extra_headers, base_url=base_url)
+        click=click, attach=attach, actions=actions, email=email, delay=delay,
+        markdown=markdown, extra_headers=extra_headers, base_url=base_url)
 
     response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
     status = response.status
@@ -32,7 +32,7 @@ end
 
 """
     ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing,
+        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         markdown=nothing, extra_headers=nothing, base_url=nothing)
 
 Construct the HTTP parameters needed to publish a notification to ntfy.sh. Returns a
@@ -40,7 +40,7 @@ Construct the HTTP parameters needed to publish a notification to ntfy.sh. Retur
 performed.
 """
 function ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing,
+        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         markdown=nothing, extra_headers=nothing, base_url=nothing)
     topic = normalise_topic(topic)::String
     message = normalise_message(message)::String
@@ -74,6 +74,9 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
         push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
     elseif markdown !== false && markdown !== nothing
         normalise_markdown(markdown)
+    end
+    if delay !== nothing
+        push!(headers, "X-Delay" => normalise_delay(delay)::String)
     end
 
     append!(headers, normalise_extra_headers(extra_headers))
@@ -159,6 +162,17 @@ Convert `value` to an email string.
 """
 normalise_email(::Any) = error("Unsupported email type")
 normalise_email(email::AbstractString) = convert(String, email)
+
+"""
+    normalise_delay(value)
+
+Convert `value` to a delay string for scheduled delivery.
+"""
+normalise_delay(::Any) = error("Unsupported delay type")
+function normalise_delay(delay::AbstractString)
+    delay_str = convert(String, delay)
+    return isempty(delay_str) ? error("delay cannot be empty") : delay_str
+end
 
 """
     normalise_markdown(value)
