@@ -23,6 +23,7 @@ ntfy(
     priority = "urgent",
     title = "Unauthorized access detected",
     tags = ["warning", "skull"],
+    markdown = true,
 )
 ```
 
@@ -38,8 +39,11 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `attach`: URL of an attachment.
 - `actions`: Actions definition string or vector (e.g. HTTP action buttons).
 - `email`: Forward notification to an email address.
+- `markdown`: Set to `true` to enable Markdown rendering (adds the `X-Markdown: yes` header).
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
 - `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
 
 Raises an error if the server does not return a 2xx response. Returns the `Downloads.Response` object on success.
+
+Note: requests use ntfy's official `X-` headers (e.g. `X-Title`, `X-Priority`).
 

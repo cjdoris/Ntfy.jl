@@ -26,16 +26,18 @@ using Ntfy
                 "clear=true",
             ],
             email = "phil@example.com",
+            markdown = true,
             extra_headers = Dict("X-Test" => "yes"),
         )
         expected_headers = [
-            "Priority" => "urgent",
-            "Title" => "Unauthorized access detected",
-            "Tags" => "warning,skull",
-            "Click" => "https://home.nest.com/",
-            "Attach" => "https://nest.com/view/yAxkasd.jpg",
-            "Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
-            "Email" => "phil@example.com",
+            "X-Priority" => "urgent",
+            "X-Title" => "Unauthorized access detected",
+            "X-Tags" => "warning,skull",
+            "X-Click" => "https://home.nest.com/",
+            "X-Attach" => "https://nest.com/view/yAxkasd.jpg",
+            "X-Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
+            "X-Email" => "phil@example.com",
+            "X-Markdown" => "yes",
             "X-Test" => "yes",
         ]
         @test req.headers == expected_headers
@@ -56,5 +58,6 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy_request("topic", 456)
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; extra_headers = ["bad"])
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; base_url = 123)
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; markdown = "yes")
     end
 end
