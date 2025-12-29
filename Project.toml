@@ -1,7 +1,13 @@
 name = "Ntfy"
-uuid = "12345678-90ab-cdef-0123-456789abcdef"
-authors = ["OpenAI Agent"]
+uuid = "c3f3ecf3-19bc-4a36-8a68-efc7dc2c4e18"
+authors = []
 version = "0.1.0"
 
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
