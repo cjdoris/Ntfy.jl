@@ -43,6 +43,11 @@ using Ntfy
         @test req.headers == expected_headers
     end
 
+    @testset "markdown disabled" begin
+        req = Ntfy.ntfy_request("topic", "msg"; markdown = false)
+        @test req.headers == Pair{String,String}[]
+    end
+
     @testset "base url" begin
         req = Ntfy.ntfy_request("/nested/topic", "hi"; base_url = "https://example.com/")
         @test req.url == "https://example.com/nested/topic"

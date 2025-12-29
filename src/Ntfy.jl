@@ -8,7 +8,7 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, markdown=false,
+        attach=nothing, actions=nothing, email=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
@@ -16,7 +16,7 @@ settings correspond to the headers supported by ntfy.sh. Raises an error if the
 response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, markdown=false,
+        attach=nothing, actions=nothing, email=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
     req = ntfy_request(topic, message; priority=priority, title=title, tags=tags,
         click=click, attach=attach, actions=actions, email=email, markdown=markdown,
@@ -33,7 +33,7 @@ end
 """
     ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing,
-        markdown=false, extra_headers=nothing, base_url=nothing)
+        markdown=nothing, extra_headers=nothing, base_url=nothing)
 
 Construct the HTTP parameters needed to publish a notification to ntfy.sh. Returns a
 `NamedTuple` with the request method, URL, headers, and body. No network requests are
@@ -41,7 +41,7 @@ performed.
 """
 function ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing,
-        markdown=false, extra_headers=nothing, base_url=nothing)
+        markdown=nothing, extra_headers=nothing, base_url=nothing)
     topic = normalise_topic(topic)::String
     message = normalise_message(message)::String
     base_url = normalise_base_url(base_url)::String
@@ -166,7 +166,7 @@ normalise_email(email::AbstractString) = convert(String, email)
 Convert `value` to a Markdown flag string.
 """
 normalise_markdown(::Any) = error("Unsupported markdown type")
-normalise_markdown(flag::Bool) = flag ? "yes" : error("markdown must be true to enable")
+normalise_markdown(flag::Bool) = flag ? "yes" : "no"
 
 """
     normalise_base_url(value)
