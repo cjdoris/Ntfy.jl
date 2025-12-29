@@ -26,6 +26,7 @@ using Ntfy
                 "clear=true",
             ],
             email = "phil@example.com",
+            delay = "tomorrow, 10am",
             extra_headers = Dict("X-Test" => "yes"),
         )
         expected_headers = [
@@ -36,6 +37,7 @@ using Ntfy
             "Attach" => "https://nest.com/view/yAxkasd.jpg",
             "Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
             "Email" => "phil@example.com",
+            "Delay" => "tomorrow, 10am",
             "X-Test" => "yes",
         ]
         @test req.headers == expected_headers
@@ -51,10 +53,16 @@ using Ntfy
         @test req.headers == ["X-One" => "1", "X-Two" => "2"]
     end
 
+    @testset "delay" begin
+        req = Ntfy.ntfy_request("reminders", "Drink water"; delay = "30m")
+        @test req.headers == ["Delay" => "30m"]
+    end
+
     @testset "invalid types" begin
         @test_throws ErrorException Ntfy.ntfy_request(123, "msg")
         @test_throws ErrorException Ntfy.ntfy_request("topic", 456)
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; extra_headers = ["bad"])
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; base_url = 123)
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; delay = 123)
     end
 end

@@ -8,18 +8,18 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, extra_headers=nothing,
-        base_url=nothing)
+        attach=nothing, actions=nothing, email=nothing, delay=nothing,
+        extra_headers=nothing, base_url=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
 settings correspond to the headers supported by ntfy.sh. Raises an error if the
 response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, extra_headers=nothing,
-        base_url=nothing)
+        attach=nothing, actions=nothing, email=nothing, delay=nothing,
+        extra_headers=nothing, base_url=nothing)
     req = ntfy_request(topic, message; priority=priority, title=title, tags=tags,
-        click=click, attach=attach, actions=actions, email=email,
+        click=click, attach=attach, actions=actions, email=email, delay=delay,
         extra_headers=extra_headers, base_url=base_url)
 
     response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
@@ -32,7 +32,7 @@ end
 
 """
     ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing,
+        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         extra_headers=nothing, base_url=nothing)
 
 Construct the HTTP parameters needed to publish a notification to ntfy.sh. Returns a
@@ -40,7 +40,7 @@ Construct the HTTP parameters needed to publish a notification to ntfy.sh. Retur
 performed.
 """
 function ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing,
+        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         extra_headers=nothing, base_url=nothing)
     topic = normalise_topic(topic)::String
     message = normalise_message(message)::String
@@ -69,6 +69,9 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
     end
     if email !== nothing
         push!(headers, "Email" => normalise_email(email)::String)
+    end
+    if delay !== nothing
+        push!(headers, "Delay" => normalise_delay(delay)::String)
     end
 
     append!(headers, normalise_extra_headers(extra_headers))
@@ -156,6 +159,14 @@ normalise_email(::Any) = error("Unsupported email type")
 normalise_email(email::AbstractString) = convert(String, email)
 
 """
+    normalise_delay(value)
+
+Convert `value` to a delay string for scheduled delivery.
+"""
+normalise_delay(::Any) = error("Unsupported delay type")
+normalise_delay(delay::AbstractString) = convert(String, delay)
+
+"""
     normalise_base_url(value)
 
 Convert `value` to a base URL string, defaulting to `https://ntfy.sh` when `nothing` is
@@ -165,7 +176,7 @@ normalise_base_url(::Nothing) = DEFAULT_BASE_URL
 normalise_base_url(::Any) = error("Unsupported base_url type")
 function normalise_base_url(url::AbstractString)
     url_str = convert(String, url)
-    return isempty(url_str) ? error("base_url cannot be empty") : rstrip(url_str, "/")
+    return isempty(url_str) ? error("base_url cannot be empty") : String(rstrip(url_str, '/'))
 end
 
 """
@@ -191,8 +202,8 @@ function normalise_extra_headers(headers::AbstractVector)
 end
 
 function build_url(base_url::AbstractString, topic::AbstractString)
-    stripped = rstrip(base_url, "/")
-    return string(stripped, "/", lstrip(topic, "/"))
+    stripped = rstrip(base_url, '/')
+    return string(stripped, "/", lstrip(topic, '/'))
 end
 
 end # module
