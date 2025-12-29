@@ -37,7 +37,7 @@ using Ntfy
             "Attach" => "https://nest.com/view/yAxkasd.jpg",
             "Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
             "Email" => "phil@example.com",
-            "Delay" => "tomorrow, 10am",
+            "X-Delay" => "tomorrow, 10am",
             "X-Test" => "yes",
         ]
         @test req.headers == expected_headers
@@ -55,7 +55,7 @@ using Ntfy
 
     @testset "delay" begin
         req = Ntfy.ntfy_request("reminders", "Drink water"; delay = "30m")
-        @test req.headers == ["Delay" => "30m"]
+        @test req.headers == ["X-Delay" => "30m"]
     end
 
     @testset "invalid types" begin

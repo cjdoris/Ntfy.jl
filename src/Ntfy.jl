@@ -71,7 +71,7 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
         push!(headers, "Email" => normalise_email(email)::String)
     end
     if delay !== nothing
-        push!(headers, "Delay" => normalise_delay(delay)::String)
+        push!(headers, "X-Delay" => normalise_delay(delay)::String)
     end
 
     append!(headers, normalise_extra_headers(extra_headers))

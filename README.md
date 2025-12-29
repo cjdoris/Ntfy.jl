@@ -39,7 +39,7 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `attach`: URL of an attachment.
 - `actions`: Actions definition string or vector (e.g. HTTP action buttons).
 - `email`: Forward notification to an email address.
-- `delay`: Delivery time string to schedule a notification (e.g. `"30m"`, `"tomorrow, 10am"`).
+- `delay`: Delivery time string (sent as the `X-Delay` header) to schedule a notification (e.g. `"30m"`, `"tomorrow, 10am"`).
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
 - `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
 
