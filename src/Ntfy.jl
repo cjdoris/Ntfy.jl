@@ -164,7 +164,10 @@ normalise_email(email::AbstractString) = convert(String, email)
 Convert `value` to a delay string for scheduled delivery.
 """
 normalise_delay(::Any) = error("Unsupported delay type")
-normalise_delay(delay::AbstractString) = convert(String, delay)
+function normalise_delay(delay::AbstractString)
+    delay_str = convert(String, delay)
+    return isempty(delay_str) ? error("delay cannot be empty") : delay_str
+end
 
 """
     normalise_base_url(value)
