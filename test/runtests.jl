@@ -38,9 +38,15 @@ using Ntfy
             "Actions" => "http, Open door, https://api.nest.com/open/yAxkasd, clear=true",
             "Email" => "phil@example.com",
             "X-Delay" => "tomorrow, 10am",
+            "X-Markdown" => "yes",
             "X-Test" => "yes",
         ]
         @test req.headers == expected_headers
+    end
+
+    @testset "markdown disabled" begin
+        req = Ntfy.ntfy_request("topic", "msg"; markdown = false)
+        @test req.headers == Pair{String,String}[]
     end
 
     @testset "base url" begin
@@ -65,5 +71,6 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; base_url = 123)
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; delay = "")
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; delay = 123)
+        @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; markdown = "yes")
     end
 end

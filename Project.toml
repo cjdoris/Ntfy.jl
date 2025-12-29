@@ -1,6 +1,6 @@
 name = "Ntfy"
-uuid = "12345678-90ab-cdef-0123-456789abcdef"
-authors = ["OpenAI Agent"]
+uuid = "c3f3ecf3-19bc-4a36-8a68-efc7dc2c4e18"
+authors = []
 version = "0.1.0"
 
 [deps]

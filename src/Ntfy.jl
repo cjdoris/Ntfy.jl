@@ -8,7 +8,7 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, delay=nothing,
+        attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
@@ -16,11 +16,11 @@ settings correspond to the headers supported by ntfy.sh. Raises an error if the
 response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
-        attach=nothing, actions=nothing, email=nothing, delay=nothing,
+        attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
     req = ntfy_request(topic, message; priority=priority, title=title, tags=tags,
         click=click, attach=attach, actions=actions, email=email, delay=delay,
-        extra_headers=extra_headers, base_url=base_url)
+        markdown=markdown, extra_headers=extra_headers, base_url=base_url)
 
     response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
     status = response.status
@@ -33,7 +33,7 @@ end
 """
     ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
-        extra_headers=nothing, base_url=nothing)
+        markdown=nothing, extra_headers=nothing, base_url=nothing)
 
 Construct the HTTP parameters needed to publish a notification to ntfy.sh. Returns a
 `NamedTuple` with the request method, URL, headers, and body. No network requests are
@@ -41,7 +41,7 @@ performed.
 """
 function ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
-        extra_headers=nothing, base_url=nothing)
+        markdown=nothing, extra_headers=nothing, base_url=nothing)
     topic = normalise_topic(topic)::String
     message = normalise_message(message)::String
     base_url = normalise_base_url(base_url)::String
@@ -50,25 +50,30 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
     headers = Pair{String,String}[]
 
     if priority !== nothing
-        push!(headers, "Priority" => normalise_priority(priority)::String)
+        push!(headers, "X-Priority" => normalise_priority(priority)::String)
     end
     if title !== nothing
-        push!(headers, "Title" => normalise_title(title)::String)
+        push!(headers, "X-Title" => normalise_title(title)::String)
     end
     if tags !== nothing
-        push!(headers, "Tags" => normalise_tags(tags)::String)
+        push!(headers, "X-Tags" => normalise_tags(tags)::String)
     end
     if click !== nothing
-        push!(headers, "Click" => normalise_click(click)::String)
+        push!(headers, "X-Click" => normalise_click(click)::String)
     end
     if attach !== nothing
-        push!(headers, "Attach" => normalise_attach(attach)::String)
+        push!(headers, "X-Attach" => normalise_attach(attach)::String)
     end
     if actions !== nothing
-        push!(headers, "Actions" => normalise_actions(actions)::String)
+        push!(headers, "X-Actions" => normalise_actions(actions)::String)
     end
     if email !== nothing
-        push!(headers, "Email" => normalise_email(email)::String)
+        push!(headers, "X-Email" => normalise_email(email)::String)
+    end
+    if markdown === true
+        push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
+    elseif markdown !== false && markdown !== nothing
+        normalise_markdown(markdown)
     end
     if delay !== nothing
         push!(headers, "X-Delay" => normalise_delay(delay)::String)
@@ -168,6 +173,14 @@ function normalise_delay(delay::AbstractString)
     delay_str = convert(String, delay)
     return isempty(delay_str) ? error("delay cannot be empty") : delay_str
 end
+
+"""
+    normalise_markdown(value)
+
+Convert `value` to a Markdown flag string.
+"""
+normalise_markdown(::Any) = error("Unsupported markdown type")
+normalise_markdown(flag::Bool) = flag ? "yes" : "no"
 
 """
     normalise_base_url(value)

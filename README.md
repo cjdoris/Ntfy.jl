@@ -24,6 +24,7 @@ ntfy(
     title = "Unauthorized access detected",
     tags = ["warning", "skull"],
     delay = "tomorrow, 10am",
+    markdown = true,
 )
 ```
 
@@ -40,6 +41,7 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `actions`: Actions definition string or vector (e.g. HTTP action buttons).
 - `email`: Forward notification to an email address.
 - `delay`: Delivery time string (sent as the `X-Delay` header) to schedule a notification (e.g. `"30m"`, `"tomorrow, 10am"`).
+- `markdown`: Set to `true` to enable Markdown rendering in supported clients.
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
 - `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
 
