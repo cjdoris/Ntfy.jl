@@ -71,3 +71,41 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; markdown = "yes")
     end
 end
+
+@testset "format_message" begin
+    @test Ntfy.format_message("value: \$(value)", 42, false) == "value: 42"
+
+    err = ErrorException("boom")
+    @test Ntfy.format_message("status: \$(success) / \$(SUCCESS) / \$(Success)", 1, false) ==
+          "status: success / SUCCESS / Success"
+    @test occursin("boom", Ntfy.format_message("error: \$(value)", err, true))
+end
+
+@testset "do-notation" begin
+    struct DummyTopic end
+    messages = String[]
+    titles = Any[]
+    function Ntfy.ntfy(::DummyTopic, message; kwargs...)
+        push!(messages, message)
+        push!(titles, get(kwargs, :title, nothing))
+        return :ok
+    end
+
+    result = Ntfy.ntfy(DummyTopic(), "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)") do
+        99
+    end
+    @test result == 99
+    @test messages == ["result 99 - SUCCESS"]
+    @test titles == ["overall Success"]
+
+    @test_throws ErrorException Ntfy.ntfy(DummyTopic(), "failing \$(success): \$(value)"; title = "failing \$(SUCCESS)") do
+        error("kaboom")
+    end
+    @test endswith(last(messages), "kaboom")
+    @test last(titles) == "failing ERROR"
+
+    Ntfy.ntfy(DummyTopic(), "no title formatting"; title = :unchanged) do
+        :ok
+    end
+    @test last(titles) === :unchanged
+end
