@@ -1,4 +1,5 @@
 using Test
+using Dates
 using Markdown
 using Ntfy
 
@@ -73,6 +74,38 @@ using Ntfy
         Ntfy.ntfy("reminders", "Drink water"; delay = "30m", request_handler=handler)
         req = only(handler.requests)
         @test req.headers == ["X-Delay" => "30m"]
+    end
+
+    @testset "delay dates extension" begin
+        handler = Ntfy.DummyRequestHandler()
+        dt = DateTime(2024, 1, 2, 3, 4, 5)
+        Ntfy.ntfy("reminders", "time"; delay = dt, request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => string(floor(Int, Dates.datetime2unix(dt)))]
+
+        handler = Ntfy.DummyRequestHandler()
+        date = Date(2024, 1, 2)
+        Ntfy.ntfy("reminders", "date"; delay = date, request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => string(floor(Int, Dates.datetime2unix(DateTime(date))))]
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("reminders", "seconds"; delay = Second(5), request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => "5 seconds"]
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("reminders", "minutes"; delay = Minute(1), request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => "1 minute"]
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("reminders", "hours"; delay = Hour(2), request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => "2 hours"]
+
+        handler = Ntfy.DummyRequestHandler()
+        @test_throws ErrorException Ntfy.ntfy("reminders", "weeks"; delay = Week(1), request_handler = handler)
     end
 
     @testset "invalid types" begin
