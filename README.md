@@ -47,5 +47,5 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
 - `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
 
-Raises an error if the server does not return a 2xx response. Returns the `Downloads.Response` object on success.
+Raises an error if the server does not return a 2xx response. Returns nothing on success.
 

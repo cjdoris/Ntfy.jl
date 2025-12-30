@@ -1,8 +1,7 @@
 # Agent Notes
-
 - This repository implements the `Ntfy` Julia package for the ntfy.sh notification service.
-- The public API exports only `ntfy`; `ntfy_request` is an internal helper and must remain unexported and undocumentated for end users.
-- Tests must never perform real network requests. The current suite only exercises `ntfy_request` and should continue to avoid calling `ntfy`.
+- The public API exports only `ntfy`; keep helper types like `DummyRequestHandler` internal (unexported and not documented in the README).
+- Tests must never perform real network requests. Use `DummyRequestHandler` with `ntfy` to capture requests instead of sending them, even in tests that are expected to throw; set its `status` and `body` fields to exercise success and error paths.
 - Keep this file up to date with any new design decisions or instructions provided in future tasks so that later agents can follow them.
 - Use ntfy's official `X-` prefixed headers (e.g., `X-Title`, `X-Priority`) when constructing requests.
-- Run tests with `julia --project=. -e 'using Pkg; Pkg.test()'`.
+- Run tests with `julia --project=. -e 'using Pkg; Pkg.test()'.
