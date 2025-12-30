@@ -1,4 +1,6 @@
 using Test
+push!(LOAD_PATH, "@stdlib")
+using Markdown
 using Ntfy
 
 @testset "ntfy" begin
@@ -88,6 +90,22 @@ using Ntfy
         handler = Ntfy.DummyRequestHandler(status = 500)
         @test_throws ErrorException Ntfy.ntfy("dummy-topic", "boom"; request_handler=handler)
         @test length(handler.requests) == 1
+    end
+
+    @testset "markdown extension" begin
+        handler = Ntfy.DummyRequestHandler()
+        msg = md"**bold** text"
+        Ntfy.ntfy("markdown-topic", msg; request_handler=handler)
+        req = only(handler.requests)
+        @test req.body == string(msg)
+        @test Dict(req.headers)["X-Markdown"] == "yes"
+
+        handler = Ntfy.DummyRequestHandler()
+        msg = md"plain"
+        Ntfy.ntfy("markdown-topic", msg; markdown=false, title="ignored", request_handler=handler)
+        req = only(handler.requests)
+        @test req.body == string(msg)
+        @test !haskey(Dict(req.headers), "X-Markdown")
     end
 end
 

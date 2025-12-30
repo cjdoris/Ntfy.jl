@@ -12,6 +12,7 @@ julia> ] add https://github.com/example/Ntfy.jl
 
 ```julia
 using Ntfy
+using Markdown
 
 # Send a basic notification
 ntfy("mytopic", "Backup successful 😀")
@@ -26,6 +27,9 @@ ntfy(
     delay = "tomorrow, 10am",
     markdown = true,
 )
+
+# Send Markdown content directly
+ntfy("release_notes", md"## v1.0.1\n- Added ntfy Markdown helper"; priority = 3)
 ```
 
 ## API
@@ -48,4 +52,11 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
 
 Raises an error if the server does not return a 2xx response. Returns nothing on success.
+
+### `ntfy(topic, message::Markdown.MD; markdown=true, kwargs...)`
+
+When you pass a `Markdown.MD` value, the Markdown package extension converts the
+markdown document to a string and forwards it to `ntfy`. The `markdown`
+keyword defaults to `true` to enable rendering in supported ntfy clients, and
+all other keyword arguments are passed through unchanged.
 
