@@ -1,5 +1,6 @@
 using Test
 using Dates
+using Downloads
 using Markdown
 using Ntfy
 
@@ -106,6 +107,11 @@ using Ntfy
 
         handler = Ntfy.DummyRequestHandler()
         @test_throws ErrorException Ntfy.ntfy("reminders", "weeks"; delay = Week(1), request_handler = handler)
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("reminders", "days"; delay = Day(1), request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["X-Delay" => "1 day"]
     end
 
     @testset "invalid types" begin
@@ -116,6 +122,46 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = "", request_handler = Ntfy.DummyRequestHandler())
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = 123, request_handler = Ntfy.DummyRequestHandler())
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes", request_handler = Ntfy.DummyRequestHandler())
+    end
+
+    @testset "normalise helpers" begin
+        @test Ntfy.normalise_priority(5) == "5"
+        @test_throws ErrorException Ntfy.normalise_priority(3.14)
+
+        @test Ntfy.normalise_title(:mytitle) == "mytitle"
+        @test_throws ErrorException Ntfy.normalise_title(123)
+
+        @test Ntfy.normalise_tags("alpha,beta") == "alpha,beta"
+        @test_throws ErrorException Ntfy.normalise_tags(1)
+
+        @test Ntfy.normalise_click("https://example.com") == "https://example.com"
+        @test_throws ErrorException Ntfy.normalise_click(100)
+
+        @test Ntfy.normalise_attach("https://example.com/file.txt") == "https://example.com/file.txt"
+        @test_throws ErrorException Ntfy.normalise_attach(Any[])
+
+        @test Ntfy.normalise_actions("view, Open") == "view, Open"
+        @test_throws ErrorException Ntfy.normalise_actions(42)
+
+        @test_throws ErrorException Ntfy.normalise_email(123)
+
+        @test Ntfy.normalise_extra_headers(Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
+        @test_throws ErrorException Ntfy.normalise_extra_headers(42)
+    end
+
+    @testset "request handler" begin
+        struct FakeURL end
+        struct FakeResponse
+            status::Int
+            message::String
+        end
+
+        Downloads.request(::FakeURL; method, headers, input) = FakeResponse(202, "accepted")
+
+        req = (method = "POST", url = FakeURL(), headers = Pair{String,String}[], body = "payload")
+        status, message = Ntfy.request(Ntfy.RequestHandler(), req)
+        @test status == 202
+        @test message == "accepted"
     end
 
     @testset "error status" begin
