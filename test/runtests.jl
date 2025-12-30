@@ -75,13 +75,13 @@ using Ntfy
     end
 
     @testset "invalid types" begin
-        @test_throws ErrorException Ntfy.ntfy(123, "msg")
-        @test_throws ErrorException Ntfy.ntfy("topic", 456)
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; extra_headers = ["bad"])
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; base_url = 123)
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = "")
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = 123)
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes")
+        @test_throws ErrorException Ntfy.ntfy(123, "msg"; request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", 456; request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; extra_headers = ["bad"], request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; base_url = 123, request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = "", request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = 123, request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes", request_handler = Ntfy.DummyRequestHandler())
     end
 
     @testset "error status" begin
