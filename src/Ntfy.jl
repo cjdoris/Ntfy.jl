@@ -11,11 +11,13 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 
 Internal helper used by the test suite to capture ntfy requests without issuing
 network calls. `topic` sets the topic name for the simulated request, and
-`requests` stores the collected request tuples.
+`requests` stores the collected request tuples. `status` controls the simulated
+HTTP status code.
 """
 Base.@kwdef mutable struct DummyTopic
     topic::String = "dummy-topic"
     requests::Vector{Any} = Any[]
+    status::Int = 200
 end
 
 function format_message(template, value, is_error::Bool)
@@ -95,13 +97,16 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
 
     if topic isa DummyTopic
         push!(topic.requests, req)
-        return nothing
+        status = topic.status
+        response_message = "dummy response"
+    else
+        response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
+        status = response.status
+        response_message = response.message
     end
 
-    response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
-    status = response.status
     if status < 200 || status >= 300
-        error("ntfy request failed with status $(status): $(response.message)")
+        error("ntfy request failed with status $(status): $(response_message)")
     end
     return nothing
 end

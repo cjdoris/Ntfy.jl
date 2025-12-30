@@ -82,6 +82,12 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = 123)
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes")
     end
+
+    @testset "error status" begin
+        topic = Ntfy.DummyTopic(status = 500)
+        @test_throws ErrorException Ntfy.ntfy(topic, "boom")
+        @test length(topic.requests) == 1
+    end
 end
 
 @testset "format_message" begin
