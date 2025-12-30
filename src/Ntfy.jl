@@ -9,7 +9,8 @@ const DEFAULT_BASE_URL = "https://ntfy.sh"
 function format_message(template, value, is_error::Bool)
     template_str = normalise_message(template)
     status_lower = is_error ? "error" : "success"
-    status_title = string(uppercase(first(status_lower)), status_lower[2:end])
+    status_title = is_error ? "Error" : "Success"
+    status_upper = is_error ? "ERROR" : "SUCCESS"
     io = IOBuffer()
     if is_error
         showerror(IOContext(io, :limit => true), value)
@@ -21,7 +22,7 @@ function format_message(template, value, is_error::Bool)
     return replace(template_str,
         "\$(value)" => value_str,
         "\$(success)" => status_lower,
-        "\$(SUCCESS)" => uppercase(status_lower),
+        "\$(SUCCESS)" => status_upper,
         "\$(Success)" => status_title,
     )
 end
@@ -51,15 +52,20 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
 end
 
 function ntfy(f::Function, topic, message_template; kwargs...)
+    kwargs_nt = (; kwargs...)
+    function format_kwargs(value, is_error)
+        title_template = get(kwargs_nt, :title, nothing)
+        return title_template === nothing ? kwargs_nt : merge(kwargs_nt, (title = format_message(title_template, value, is_error),))
+    end
     value = try
         f()
     catch err
         message = format_message(message_template, err, true)
-        ntfy(topic, message; kwargs...)
+        ntfy(topic, message; format_kwargs(err, true)...)
         rethrow()
     end
     message = format_message(message_template, value, false)
-    ntfy(topic, message; kwargs...)
+    ntfy(topic, message; format_kwargs(value, false)...)
     return value
 end
 

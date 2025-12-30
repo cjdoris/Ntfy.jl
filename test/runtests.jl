@@ -84,19 +84,23 @@ end
 @testset "do-notation" begin
     struct DummyTopic end
     messages = String[]
+    titles = Any[]
     function Ntfy.ntfy(::DummyTopic, message; kwargs...)
         push!(messages, message)
+        push!(titles, get(kwargs, :title, nothing))
         return :ok
     end
 
-    result = Ntfy.ntfy(DummyTopic(), "result \$(value) - \$(SUCCESS)") do
+    result = Ntfy.ntfy(DummyTopic(), "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)") do
         99
     end
     @test result == 99
     @test messages == ["result 99 - SUCCESS"]
+    @test titles == ["overall Success"]
 
-    @test_throws ErrorException Ntfy.ntfy(DummyTopic(), "failing \$(success): \$(value)") do
+    @test_throws ErrorException Ntfy.ntfy(DummyTopic(), "failing \$(success): \$(value)"; title = "failing \$(SUCCESS)") do
         error("kaboom")
     end
     @test endswith(last(messages), "kaboom")
+    @test last(titles) == "failing ERROR"
 end
