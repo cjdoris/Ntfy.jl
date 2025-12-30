@@ -1,5 +1,4 @@
 using Test
-push!(Base.LOAD_PATH, Base.load_path_expand("@stdlib"))
 using Markdown
 using Ntfy
 
