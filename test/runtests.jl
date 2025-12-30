@@ -1,5 +1,4 @@
 using Test
-push!(LOAD_PATH, "@stdlib")
 using Markdown
 using Ntfy
 
