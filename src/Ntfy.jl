@@ -6,18 +6,20 @@ using Downloads
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 
+struct RequestHandler end
+
 """
-    DummyTopic(; topic="dummy-topic", requests=Any[])
+    DummyRequestHandler(; requests=Any[], status=200, body="dummy response")
 
 Internal helper used by the test suite to capture ntfy requests without issuing
-network calls. `topic` sets the topic name for the simulated request, and
-`requests` stores the collected request tuples. `status` controls the simulated
-HTTP status code.
+network calls. `requests` stores the collected request tuples, `status`
+controls the simulated HTTP status code, and `body` sets the simulated response
+message.
 """
-Base.@kwdef mutable struct DummyTopic
-    topic::String = "dummy-topic"
+Base.@kwdef mutable struct DummyRequestHandler
     requests::Vector{Any} = Any[]
     status::Int = 200
+    body::String = "dummy response"
 end
 
 function format_message(template, value, is_error::Bool)
@@ -44,7 +46,7 @@ end
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing)
+        extra_headers=nothing, base_url=nothing, request_handler=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
 settings correspond to the headers supported by ntfy.sh. Raises an error if the
@@ -52,9 +54,9 @@ response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing)
-    topic_name = topic isa DummyTopic ? topic.topic : topic
-    topic_name = normalise_topic(topic_name)::String
+        extra_headers=nothing, base_url=nothing, request_handler=nothing)
+    handler = request_handler === nothing ? RequestHandler() : request_handler
+    topic_name = normalise_topic(topic)::String
     message = normalise_message(message)::String
     base_url = normalise_base_url(base_url)::String
 
@@ -95,20 +97,22 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
 
     req = (method = "POST", url = url, headers = headers, body = message)
 
-    if topic isa DummyTopic
-        push!(topic.requests, req)
-        status = topic.status
-        response_message = "dummy response"
-    else
-        response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
-        status = response.status
-        response_message = response.message
-    end
+    status, response_message = request(handler, req)
 
     if status < 200 || status >= 300
         error("ntfy request failed with status $(status): $(response_message)")
     end
     return nothing
+end
+
+function request(::RequestHandler, req)
+    response = Downloads.request(req.url; method=req.method, headers=req.headers, input=IOBuffer(req.body))
+    return response.status, response.message
+end
+
+function request(handler::DummyRequestHandler, req)
+    push!(handler.requests, req)
+    return handler.status, handler.body
 end
 
 function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)

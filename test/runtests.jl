@@ -3,9 +3,9 @@ using Ntfy
 
 @testset "ntfy" begin
     @testset "defaults" begin
-        topic = Ntfy.DummyTopic(topic = "mytopic")
-        Ntfy.ntfy(topic, "Backup successful 😀")
-        req = only(topic.requests)
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("mytopic", "Backup successful 😀"; request_handler=handler)
+        req = only(handler.requests)
         @test req.method == "POST"
         @test req.url == "https://ntfy.sh/mytopic"
         @test req.headers == Pair{String,String}[]
@@ -13,9 +13,9 @@ using Ntfy
     end
 
     @testset "headers" begin
-        topic = Ntfy.DummyTopic(topic = "phil_alerts")
+        handler = Ntfy.DummyRequestHandler()
         Ntfy.ntfy(
-            topic,
+            "phil_alerts",
             "Remote access detected. Act right away.";
             priority = "urgent",
             title = "Unauthorized access detected",
@@ -29,8 +29,9 @@ using Ntfy
             email = "phil@example.com",
             delay = "tomorrow, 10am",
             extra_headers = Dict("X-Test" => "yes"),
+            request_handler = handler,
         )
-        req = only(topic.requests)
+        req = only(handler.requests)
         expected_headers = [
             "X-Priority" => "urgent",
             "X-Title" => "Unauthorized access detected",
@@ -46,30 +47,30 @@ using Ntfy
     end
 
     @testset "markdown disabled" begin
-        topic = Ntfy.DummyTopic()
-        Ntfy.ntfy(topic, "msg"; markdown = false)
-        req = only(topic.requests)
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("dummy-topic", "msg"; markdown = false, request_handler=handler)
+        req = only(handler.requests)
         @test req.headers == Pair{String,String}[]
     end
 
     @testset "base url" begin
-        topic = Ntfy.DummyTopic()
-        Ntfy.ntfy(topic, "hi"; base_url = "https://example.com/", title = "unused")
-        req = only(topic.requests)
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("dummy-topic", "hi"; base_url = "https://example.com/", title = "unused", request_handler=handler)
+        req = only(handler.requests)
         @test req.url == "https://example.com/dummy-topic"
     end
 
     @testset "extra headers vector" begin
-        topic = Ntfy.DummyTopic()
-        Ntfy.ntfy(topic, "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"])
-        req = only(topic.requests)
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("dummy-topic", "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"], request_handler=handler)
+        req = only(handler.requests)
         @test req.headers == ["X-One" => "1", "X-Two" => "2"]
     end
 
     @testset "delay" begin
-        topic = Ntfy.DummyTopic(topic = "reminders")
-        Ntfy.ntfy(topic, "Drink water"; delay = "30m")
-        req = only(topic.requests)
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("reminders", "Drink water"; delay = "30m", request_handler=handler)
+        req = only(handler.requests)
         @test req.headers == ["X-Delay" => "30m"]
     end
 
@@ -84,9 +85,9 @@ using Ntfy
     end
 
     @testset "error status" begin
-        topic = Ntfy.DummyTopic(status = 500)
-        @test_throws ErrorException Ntfy.ntfy(topic, "boom")
-        @test length(topic.requests) == 1
+        handler = Ntfy.DummyRequestHandler(status = 500)
+        @test_throws ErrorException Ntfy.ntfy("dummy-topic", "boom"; request_handler=handler)
+        @test length(handler.requests) == 1
     end
 end
 
@@ -100,23 +101,23 @@ end
 end
 
 @testset "do-notation" begin
-    topic = Ntfy.DummyTopic()
+    handler = Ntfy.DummyRequestHandler()
 
-    result = Ntfy.ntfy(topic, "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)") do
+    result = Ntfy.ntfy("dummy-topic", "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)", request_handler=handler) do
         99
     end
     @test result === nothing
-    @test topic.requests[1].body == "result 99 - SUCCESS"
-    @test Dict(topic.requests[1].headers)["X-Title"] == "overall Success"
+    @test handler.requests[1].body == "result 99 - SUCCESS"
+    @test Dict(handler.requests[1].headers)["X-Title"] == "overall Success"
 
-    @test_throws ErrorException Ntfy.ntfy(topic, "failing \$(success): \$(value)"; title = "failing \$(SUCCESS)") do
+    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "failing \$(success): \$(value)"; title = "failing \$(SUCCESS)", request_handler=handler) do
         error("kaboom")
     end
-    @test endswith(topic.requests[end].body, "kaboom")
-    @test Dict(topic.requests[end].headers)["X-Title"] == "failing ERROR"
+    @test endswith(handler.requests[end].body, "kaboom")
+    @test Dict(handler.requests[end].headers)["X-Title"] == "failing ERROR"
 
-    Ntfy.ntfy(topic, "no title formatting"; title = :unchanged) do
+    Ntfy.ntfy("dummy-topic", "no title formatting"; title = :unchanged, request_handler=handler) do
         :ok
     end
-    @test Dict(topic.requests[end].headers)["X-Title"] == "unchanged"
+    @test Dict(handler.requests[end].headers)["X-Title"] == "unchanged"
 end
