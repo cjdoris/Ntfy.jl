@@ -51,21 +51,19 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
     return response
 end
 
-function ntfy(f::Function, topic, message_template; kwargs...)
-    kwargs_nt = (; kwargs...)
-    function format_kwargs(value, is_error)
-        title_template = get(kwargs_nt, :title, nothing)
-        return title_template === nothing ? kwargs_nt : merge(kwargs_nt, (title = format_message(title_template, value, is_error),))
+function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)
+    function format_title(value, is_error)
+        return title isa AbstractString ? format_message(title, value, is_error) : title
     end
     value = try
         f()
     catch err
         message = format_message(message_template, err, true)
-        ntfy(topic, message; format_kwargs(err, true)...)
+        ntfy(topic, message; title=format_title(err, true), kwargs...)
         rethrow()
     end
     message = format_message(message_template, value, false)
-    ntfy(topic, message; format_kwargs(value, false)...)
+    ntfy(topic, message; title=format_title(value, false), kwargs...)
     return value
 end
 

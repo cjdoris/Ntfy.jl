@@ -103,4 +103,9 @@ end
     end
     @test endswith(last(messages), "kaboom")
     @test last(titles) == "failing ERROR"
+
+    Ntfy.ntfy(DummyTopic(), "no title formatting"; title = :unchanged) do
+        :ok
+    end
+    @test last(titles) === :unchanged
 end
