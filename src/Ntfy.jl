@@ -6,6 +6,26 @@ using Downloads
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 
+function format_message(template, value, is_error::Bool)
+    template_str = normalise_message(template)
+    status_lower = is_error ? "error" : "success"
+    status_title = string(uppercase(first(status_lower)), status_lower[2:end])
+    io = IOBuffer()
+    if is_error
+        showerror(IOContext(io, :limit => true), value)
+    else
+        show(IOContext(io, :limit => true), value)
+    end
+    value_str = String(take!(io))
+
+    return replace(template_str,
+        "\$(value)" => value_str,
+        "\$(success)" => status_lower,
+        "\$(SUCCESS)" => uppercase(status_lower),
+        "\$(Success)" => status_title,
+    )
+end
+
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
@@ -28,6 +48,19 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
         error("ntfy request failed with status $(status): $(response.message)")
     end
     return response
+end
+
+function ntfy(f::Function, topic, message_template; kwargs...)
+    value = try
+        f()
+    catch err
+        message = format_message(message_template, err, true)
+        ntfy(topic, message; kwargs...)
+        rethrow()
+    end
+    message = format_message(message_template, value, false)
+    ntfy(topic, message; kwargs...)
+    return value
 end
 
 """

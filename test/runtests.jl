@@ -71,3 +71,32 @@ using Ntfy
         @test_throws ErrorException Ntfy.ntfy_request("topic", "msg"; markdown = "yes")
     end
 end
+
+@testset "format_message" begin
+    @test Ntfy.format_message("value: \$(value)", 42, false) == "value: 42"
+
+    err = ErrorException("boom")
+    @test Ntfy.format_message("status: \$(success) / \$(SUCCESS) / \$(Success)", 1, false) ==
+          "status: success / SUCCESS / Success"
+    @test occursin("boom", Ntfy.format_message("error: \$(value)", err, true))
+end
+
+@testset "do-notation" begin
+    struct DummyTopic end
+    messages = String[]
+    function Ntfy.ntfy(::DummyTopic, message; kwargs...)
+        push!(messages, message)
+        return :ok
+    end
+
+    result = Ntfy.ntfy(DummyTopic(), "result \$(value) - \$(SUCCESS)") do
+        99
+    end
+    @test result == 99
+    @test messages == ["result 99 - SUCCESS"]
+
+    @test_throws ErrorException Ntfy.ntfy(DummyTopic(), "failing \$(success): \$(value)") do
+        error("kaboom")
+    end
+    @test endswith(last(messages), "kaboom")
+end
