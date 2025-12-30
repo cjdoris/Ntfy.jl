@@ -6,6 +6,18 @@ using Downloads
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 
+"""
+    DummyTopic(; topic="dummy-topic", requests=Any[])
+
+Internal helper used by the test suite to capture ntfy requests without issuing
+network calls. `topic` sets the topic name for the simulated request, and
+`requests` stores the collected request tuples.
+"""
+Base.@kwdef mutable struct DummyTopic
+    topic::String = "dummy-topic"
+    requests::Vector{Any} = Any[]
+end
+
 function format_message(template, value, is_error::Bool)
     template_str = normalise_message(template)
     status_lower = is_error ? "error" : "success"
@@ -39,51 +51,12 @@ response status is not in the 2xx range.
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing)
-    req = ntfy_request(topic, message; priority=priority, title=title, tags=tags,
-        click=click, attach=attach, actions=actions, email=email, delay=delay,
-        markdown=markdown, extra_headers=extra_headers, base_url=base_url)
-
-    response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
-    status = response.status
-    if status < 200 || status >= 300
-        error("ntfy request failed with status $(status): $(response.message)")
-    end
-    return response
-end
-
-function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)
-    function format_title(value, is_error)
-        return title isa AbstractString ? format_message(title, value, is_error) : title
-    end
-    value = try
-        f()
-    catch err
-        message = format_message(message_template, err, true)
-        ntfy(topic, message; title=format_title(err, true), kwargs...)
-        rethrow()
-    end
-    message = format_message(message_template, value, false)
-    ntfy(topic, message; title=format_title(value, false), kwargs...)
-    return value
-end
-
-"""
-    ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
-        markdown=nothing, extra_headers=nothing, base_url=nothing)
-
-Construct the HTTP parameters needed to publish a notification to ntfy.sh. Returns a
-`NamedTuple` with the request method, URL, headers, and body. No network requests are
-performed.
-"""
-function ntfy_request(topic, message; priority=nothing, title=nothing, tags=nothing,
-        click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
-        markdown=nothing, extra_headers=nothing, base_url=nothing)
-    topic = normalise_topic(topic)::String
+    topic_name = topic isa DummyTopic ? topic.topic : topic
+    topic_name = normalise_topic(topic_name)::String
     message = normalise_message(message)::String
     base_url = normalise_base_url(base_url)::String
 
-    url = build_url(base_url, topic)
+    url = build_url(base_url, topic_name)
     headers = Pair{String,String}[]
 
     if priority !== nothing
@@ -118,7 +91,35 @@ function ntfy_request(topic, message; priority=nothing, title=nothing, tags=noth
 
     append!(headers, normalise_extra_headers(extra_headers))
 
-    return (method = "POST", url = url, headers = headers, body = message)
+    req = (method = "POST", url = url, headers = headers, body = message)
+
+    if topic isa DummyTopic
+        push!(topic.requests, req)
+        return nothing
+    end
+
+    response = Downloads.request(req.method, req.url; headers=req.headers, body=req.body)
+    status = response.status
+    if status < 200 || status >= 300
+        error("ntfy request failed with status $(status): $(response.message)")
+    end
+    return nothing
+end
+
+function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)
+    function format_title(value, is_error)
+        return title isa AbstractString ? format_message(title, value, is_error) : title
+    end
+    value = try
+        f()
+    catch err
+        message = format_message(message_template, err, true)
+        ntfy(topic, message; title=format_title(err, true), kwargs...)
+        rethrow()
+    end
+    message = format_message(message_template, value, false)
+    ntfy(topic, message; title=format_title(value, false), kwargs...)
+    return nothing
 end
 
 """
@@ -153,6 +154,7 @@ Convert `value` to a title string or raise an error.
 """
 normalise_title(::Any) = error("Unsupported title type")
 normalise_title(title::AbstractString) = convert(String, title)
+normalise_title(title::Symbol) = String(title)
 
 """
     normalise_tags(value)
