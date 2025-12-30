@@ -8,14 +8,12 @@ julia = "1.9"
 
 [deps]
 Downloads = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
+
+[weakdeps]
 Markdown = "d6f4376e-3b1a-538f-9b0a-35f17bd53a63"
 
 [extensions]
 MarkdownExt = "Markdown"
 
-[extras]
-Markdown = "d6f4376e-3b1a-538f-9b0a-35f17bd53a63"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test", "Markdown"]
+[workspace]
+projects = ["test/Project.toml"]
