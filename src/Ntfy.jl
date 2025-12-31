@@ -98,7 +98,9 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
     end
 
     append!(headers, normalise_extra_headers(extra_headers))
-    append!(headers, normalise_auth(auth))
+    if auth !== nothing
+        push!(headers, "Authorization" => normalise_auth(auth)::String)
+    end
 
     req = (method = "POST", url = url, headers = headers, body = message)
 
@@ -296,23 +298,20 @@ end
 """
     normalise_auth(value)
 
-Convert `value` to an `Authorization` header pair.
+Convert `value` to an `Authorization` header value string.
 """
-normalise_auth(::Nothing) = Pair{String,String}[]
-normalise_auth(auth::AbstractString) = ["Authorization" => convert(String, auth)]
-function normalise_auth(auth::Tuple)
-    if length(auth) == 2
-        username, password = auth
-        creds = string(convert(String, username), ":", convert(String, password))
-        encoded = Base64.base64encode(creds)
-        return ["Authorization" => string("Basic ", encoded)]
-    elseif length(auth) == 1
-        token = convert(String, only(auth))
-        return ["Authorization" => string("Bearer ", token)]
-    else
-        error("Unsupported auth tuple length")
-    end
+normalise_auth(auth::AbstractString) = convert(String, auth)
+function normalise_auth(auth::Tuple{A,B}) where {A,B}
+    username, password = auth
+    creds = string(convert(String, username), ":", convert(String, password))
+    encoded = Base64.base64encode(creds)
+    return string("Basic ", encoded)
 end
+function normalise_auth(auth::Tuple{T}) where {T}
+    token = convert(String, only(auth))
+    return string("Bearer ", token)
+end
+normalise_auth(::Tuple) = error("Unsupported auth tuple length")
 normalise_auth(::Any) = error("Unsupported auth type")
 
 function build_url(base_url::AbstractString, topic::AbstractString)
