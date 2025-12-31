@@ -49,7 +49,10 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `delay`: Delivery time string (sent as the `X-Delay` header) to schedule a notification (e.g. `"30m"`, `"tomorrow, 10am"`).
 - `markdown`: Set to `true` to enable Markdown rendering in supported clients.
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
-- `base_url`: Alternative base server URL (defaults to `https://ntfy.sh`).
+- `base_url`: Alternative base server URL. When omitted, `ntfy` checks the
+  `base_url` package preference (see [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl))
+  or the `JULIA_NTFY_BASE_URL` environment variable before falling back to
+  `https://ntfy.sh`.
 
 Raises an error if the server does not return a 2xx response. Returns nothing on success.
 
