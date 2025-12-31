@@ -54,9 +54,9 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
   `base_url` package preference (see [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl))
   or the `JULIA_NTFY_BASE_URL` environment variable before falling back to
   `https://ntfy.sh`.
-- `auth`: Optional authentication. Provide a string for a literal `Authorization`
-  header value, a 2-tuple `(username, password)` for [Basic auth](https://developer.mozilla.org/en-US/docs/Web/HTTP/Authentication#basic_authentication),
-  or a 1-tuple `(token,)` for Bearer tokens.
+- `auth`: Optional authentication. Provide a 2-tuple `(username, password)` for
+  Basic auth, a 1-tuple `(token,)` for Bearer tokens, or a string containing the
+  literal `Authorization` header value.
 
 Raises an error if the server does not return a 2xx response. Returns nothing on success.
 

@@ -97,10 +97,10 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
         push!(headers, "X-Delay" => normalise_delay(delay)::String)
     end
 
-    append!(headers, normalise_extra_headers(extra_headers))
     if auth !== nothing
         push!(headers, "Authorization" => normalise_auth(auth)::String)
     end
+    append!(headers, normalise_extra_headers(extra_headers))
 
     req = (method = "POST", url = url, headers = headers, body = message)
 

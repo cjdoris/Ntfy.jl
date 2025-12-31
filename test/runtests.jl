@@ -36,6 +36,23 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
         req = only(handler.requests)
         @test req.headers == ["Authorization" => "Bearer token"]
 
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy(
+            "secrets",
+            "payload";
+            auth = ("user", "pass"),
+            extra_headers = Dict("X-Test" => "yes"),
+            priority = "high",
+            request_handler = handler,
+        )
+        req = only(handler.requests)
+        encoded = Base64.base64encode("user:pass")
+        @test req.headers == [
+            "X-Priority" => "high",
+            "Authorization" => "Basic $(encoded)",
+            "X-Test" => "yes",
+        ]
+
         @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = 123, request_handler = Ntfy.DummyRequestHandler())
         @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("too", "many", "values"), request_handler = Ntfy.DummyRequestHandler())
     end
