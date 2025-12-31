@@ -3,8 +3,11 @@ module Ntfy
 export ntfy
 
 using Downloads
+using Preferences
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
+const BASE_URL_PREFERENCE = "base_url"
+const BASE_URL_ENVIRONMENT = "JULIA_NTFY_BASE_URL"
 
 struct RequestHandler end
 
@@ -233,14 +236,24 @@ normalise_markdown(flag::Bool) = flag ? "yes" : "no"
 """
     normalise_base_url(value)
 
-Convert `value` to a base URL string, defaulting to `https://ntfy.sh` when `nothing` is
-provided.
+Convert `value` to a base URL string, defaulting to `https://ntfy.sh` (or a configured
+preference or environment variable) when `nothing` is provided.
 """
-normalise_base_url(::Nothing) = DEFAULT_BASE_URL
+normalise_base_url(::Nothing) = resolve_default_base_url()
 normalise_base_url(::Any) = error("Unsupported base_url type")
 function normalise_base_url(url::AbstractString)
     url_str = convert(String, url)
-    return isempty(url_str) ? error("base_url cannot be empty") : String(rstrip(url_str, '/'))
+    return isempty(url_str) ? error("base_url cannot be empty") : normalise_base_url_string(url_str)
+end
+
+function resolve_default_base_url()
+    preference_url = @load_preference(BASE_URL_PREFERENCE, nothing)
+    url = preference_url === nothing ? get(ENV, BASE_URL_ENVIRONMENT, nothing) : preference_url
+    return url === nothing ? DEFAULT_BASE_URL : normalise_base_url(url)
+end
+
+function normalise_base_url_string(url::AbstractString)
+    return String(rstrip(url, '/'))
 end
 
 """

@@ -2,7 +2,10 @@ using Test
 using Dates
 using Downloads
 using Markdown
+using Preferences
 using Ntfy
+
+ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
 
 @testset "ntfy" begin
     @testset "defaults" begin
@@ -61,6 +64,37 @@ using Ntfy
         Ntfy.ntfy("dummy-topic", "hi"; base_url = "https://example.com/", title = "unused", request_handler=handler)
         req = only(handler.requests)
         @test req.url == "https://example.com/dummy-topic"
+
+        @testset "from preference" begin
+            mktempdir() do prefs_path
+                withenv(
+                    "JULIA_PREFERENCES_PATH" => prefs_path,
+                    "JULIA_NTFY_BASE_URL" => "https://env.example/",
+                ) do
+                    Preferences.set_preferences!(Ntfy, "base_url" => "https://prefs.example/"; force = true)
+
+                    handler = Ntfy.DummyRequestHandler()
+                    Ntfy.ntfy("pref-topic", "hi"; title = "unused", request_handler=handler)
+                    pref_req = only(handler.requests)
+                    @test pref_req.url == "https://prefs.example/pref-topic"
+                end
+            end
+        end
+
+        @testset "from env" begin
+            mktempdir() do prefs_path
+                handler = Ntfy.DummyRequestHandler()
+                withenv(
+                    "JULIA_PREFERENCES_PATH" => prefs_path,
+                    "JULIA_NTFY_BASE_URL" => "https://env.example/",
+                ) do
+                    Preferences.delete_preferences!(Ntfy, Ntfy.BASE_URL_PREFERENCE; force = true, block_inheritance = true)
+                    Ntfy.ntfy("env-topic", "hi"; title = "unused", request_handler=handler)
+                end
+                env_req = only(handler.requests)
+                @test env_req.url == "https://env.example/env-topic"
+            end
+        end
     end
 
     @testset "extra headers vector" begin
