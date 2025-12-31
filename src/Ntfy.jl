@@ -2,6 +2,7 @@ module Ntfy
 
 export ntfy
 
+using Base64
 using Downloads
 using Preferences
 
@@ -49,7 +50,7 @@ end
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing, request_handler=nothing)
+        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
 settings correspond to the headers supported by ntfy.sh. Raises an error if the
@@ -57,7 +58,7 @@ response status is not in the 2xx range.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing, request_handler=nothing)
+        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
     handler = request_handler === nothing ? RequestHandler() : request_handler
     topic_name = normalise_topic(topic)::String
     message = normalise_message(message)::String
@@ -96,6 +97,9 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
         push!(headers, "X-Delay" => normalise_delay(delay)::String)
     end
 
+    if auth !== nothing
+        push!(headers, "Authorization" => normalise_auth(auth)::String)
+    end
     append!(headers, normalise_extra_headers(extra_headers))
 
     req = (method = "POST", url = url, headers = headers, body = message)
@@ -290,6 +294,25 @@ function normalise_extra_headers(headers::AbstractVector)
     end
     return pairs
 end
+
+"""
+    normalise_auth(value)
+
+Convert `value` to an `Authorization` header value string.
+"""
+normalise_auth(auth::AbstractString) = convert(String, auth)
+function normalise_auth(auth::Tuple{A,B}) where {A,B}
+    username, password = auth
+    creds = string(convert(String, username), ":", convert(String, password))
+    encoded = Base64.base64encode(creds)
+    return string("Basic ", encoded)
+end
+function normalise_auth(auth::Tuple{T}) where {T}
+    token = convert(String, only(auth))
+    return string("Bearer ", token)
+end
+normalise_auth(::Tuple) = error("Unsupported auth tuple length")
+normalise_auth(::Any) = error("Unsupported auth type")
 
 function build_url(base_url::AbstractString, topic::AbstractString)
     stripped = rstrip(base_url, '/')
