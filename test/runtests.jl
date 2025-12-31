@@ -3,6 +3,7 @@ using Dates
 using Downloads
 using Markdown
 using Preferences
+using Base64
 using Ntfy
 
 ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
@@ -16,6 +17,27 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
         @test req.url == "https://ntfy.sh/mytopic"
         @test req.headers == Pair{String,String}[]
         @test req.body == "Backup successful 😀"
+    end
+
+    @testset "auth" begin
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("secrets", "payload"; auth = "Custom", request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["Authorization" => "Custom"]
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("secrets", "payload"; auth = ("user", "pass"), request_handler = handler)
+        req = only(handler.requests)
+        encoded = Base64.base64encode("user:pass")
+        @test req.headers == ["Authorization" => "Basic $(encoded)"]
+
+        handler = Ntfy.DummyRequestHandler()
+        Ntfy.ntfy("secrets", "payload"; auth = ("token",), request_handler = handler)
+        req = only(handler.requests)
+        @test req.headers == ["Authorization" => "Bearer token"]
+
+        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = 123, request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("too", "many", "values"), request_handler = Ntfy.DummyRequestHandler())
     end
 
     @testset "headers" begin
