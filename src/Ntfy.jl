@@ -246,12 +246,25 @@ function normalise_base_url(url::AbstractString)
     return isempty(url_str) ? error("base_url cannot be empty") : normalise_base_url_string(url_str)
 end
 
+"""
+    resolve_default_base_url()
+
+Resolve the base URL by first checking package preferences, then the
+`JULIA_NTFY_BASE_URL` environment variable, and finally falling back to the
+default ntfy.sh URL.
+"""
 function resolve_default_base_url()
     preference_url = @load_preference(BASE_URL_PREFERENCE, nothing)
     url = preference_url === nothing ? get(ENV, BASE_URL_ENVIRONMENT, nothing) : preference_url
     return url === nothing ? DEFAULT_BASE_URL : normalise_base_url(url)
 end
 
+"""
+    normalise_base_url_string(url)
+
+Strip trailing slashes from a base URL string to ensure consistent URL
+construction.
+"""
 function normalise_base_url_string(url::AbstractString)
     return String(rstrip(url, '/'))
 end
