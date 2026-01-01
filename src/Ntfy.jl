@@ -74,91 +74,100 @@ end
 
 Add an `X-Priority` header to `headers` when `priority` is provided.
 """
-function handle_priority!(headers, priority)
-    if priority === nothing
-        return headers
-    end
-    push!(headers, "X-Priority" => normalise_priority(priority)::String)
+handle_priority!(headers, ::Nothing) = headers
+function handle_priority!(headers, priority::AbstractString)
+    push!(headers, "X-Priority" => convert(String, priority))
     return headers
 end
+function handle_priority!(headers, priority::Integer)
+    push!(headers, "X-Priority" => string(priority))
+    return headers
+end
+handle_priority!(headers, ::Any) = error("Unsupported priority type")
 
 """
     handle_title!(headers, title)
 
 Add an `X-Title` header to `headers` when `title` is provided.
 """
-function handle_title!(headers, title)
-    if title === nothing
-        return headers
-    end
-    push!(headers, "X-Title" => normalise_title(title)::String)
+handle_title!(headers, ::Nothing) = headers
+function handle_title!(headers, title::AbstractString)
+    push!(headers, "X-Title" => convert(String, title))
     return headers
 end
+function handle_title!(headers, title::Symbol)
+    push!(headers, "X-Title" => String(title))
+    return headers
+end
+handle_title!(headers, ::Any) = error("Unsupported title type")
 
 """
     handle_tags!(headers, tags)
 
 Add an `X-Tags` header to `headers` when `tags` is provided.
 """
-function handle_tags!(headers, tags)
-    if tags === nothing
-        return headers
-    end
-    push!(headers, "X-Tags" => normalise_tags(tags)::String)
+handle_tags!(headers, ::Nothing) = headers
+function handle_tags!(headers, tags::AbstractString)
+    push!(headers, "X-Tags" => convert(String, tags))
     return headers
 end
+function handle_tags!(headers, tags::AbstractVector)
+    push!(headers, "X-Tags" => join([convert(String, tag) for tag in tags], ","))
+    return headers
+end
+handle_tags!(headers, ::Any) = error("Unsupported tags type")
 
 """
     handle_click!(headers, click)
 
 Add an `X-Click` header to `headers` when `click` is provided.
 """
-function handle_click!(headers, click)
-    if click === nothing
-        return headers
-    end
-    push!(headers, "X-Click" => normalise_click(click)::String)
+handle_click!(headers, ::Nothing) = headers
+function handle_click!(headers, click::AbstractString)
+    push!(headers, "X-Click" => convert(String, click))
     return headers
 end
+handle_click!(headers, ::Any) = error("Unsupported click type")
 
 """
     handle_attach!(headers, attach)
 
 Add an `X-Attach` header to `headers` when `attach` is provided.
 """
-function handle_attach!(headers, attach)
-    if attach === nothing
-        return headers
-    end
-    push!(headers, "X-Attach" => normalise_attach(attach)::String)
+handle_attach!(headers, ::Nothing) = headers
+function handle_attach!(headers, attach::AbstractString)
+    push!(headers, "X-Attach" => convert(String, attach))
     return headers
 end
+handle_attach!(headers, ::Any) = error("Unsupported attach type")
 
 """
     handle_actions!(headers, actions)
 
 Add an `X-Actions` header to `headers` when `actions` is provided.
 """
-function handle_actions!(headers, actions)
-    if actions === nothing
-        return headers
-    end
-    push!(headers, "X-Actions" => normalise_actions(actions)::String)
+handle_actions!(headers, ::Nothing) = headers
+function handle_actions!(headers, actions::AbstractString)
+    push!(headers, "X-Actions" => convert(String, actions))
     return headers
 end
+function handle_actions!(headers, actions::AbstractVector)
+    push!(headers, "X-Actions" => join([convert(String, action) for action in actions], "; "))
+    return headers
+end
+handle_actions!(headers, ::Any) = error("Unsupported actions type")
 
 """
     handle_email!(headers, email)
 
 Add an `X-Email` header to `headers` when `email` is provided.
 """
-function handle_email!(headers, email)
-    if email === nothing
-        return headers
-    end
-    push!(headers, "X-Email" => normalise_email(email)::String)
+handle_email!(headers, ::Nothing) = headers
+function handle_email!(headers, email::AbstractString)
+    push!(headers, "X-Email" => convert(String, email))
     return headers
 end
+handle_email!(headers, ::Any) = error("Unsupported email type")
 
 """
     handle_markdown!(headers, markdown)
@@ -166,30 +175,28 @@ end
 Add an `X-Markdown` header to `headers` when Markdown support is explicitly
 requested.
 """
-function handle_markdown!(headers, markdown)
-    if markdown === true
-        push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
-        return headers
-    elseif markdown === false || markdown === nothing
-        return headers
+handle_markdown!(headers, ::Nothing) = headers
+function handle_markdown!(headers, markdown::Bool)
+    if markdown
+        push!(headers, "X-Markdown" => "yes")
     end
-
-    normalise_markdown(markdown)
     return headers
 end
+handle_markdown!(headers, ::Any) = error("Unsupported markdown type")
 
 """
     handle_delay!(headers, delay)
 
 Add an `X-Delay` header to `headers` when `delay` is provided.
 """
-function handle_delay!(headers, delay)
-    if delay === nothing
-        return headers
-    end
-    push!(headers, "X-Delay" => normalise_delay(delay)::String)
+handle_delay!(headers, ::Nothing) = headers
+function handle_delay!(headers, delay::AbstractString)
+    delay_str = convert(String, delay)
+    isempty(delay_str) && error("delay cannot be empty")
+    push!(headers, "X-Delay" => delay_str)
     return headers
 end
+handle_delay!(headers, ::Any) = error("Unsupported delay type")
 
 """
     handle_auth!(headers, auth)
@@ -198,24 +205,47 @@ Add an `Authorization` header to `headers` based on the provided `auth`
 argument or configured defaults. No header is added when no credentials are
 available.
 """
-function handle_auth!(headers, auth)
-    selected_auth = auth === nothing ? resolve_default_auth() : auth
-    if selected_auth === nothing
-        return headers
-    end
-    push!(headers, "Authorization" => normalise_auth(selected_auth)::String)
+function handle_auth!(headers, ::Nothing)
+    selected_auth = resolve_default_auth()
+    return selected_auth === nothing ? headers : handle_auth!(headers, selected_auth)
+end
+function handle_auth!(headers, auth::AbstractString)
+    token = convert(String, auth)
+    isempty(token) && error("auth token cannot be empty")
+    push!(headers, "Authorization" => string("Bearer ", token))
     return headers
 end
+function handle_auth!(headers, auth::Tuple{A,B}) where {A,B}
+    username, password = auth
+    creds = string(convert(String, username), ":", convert(String, password))
+    encoded = Base64.base64encode(creds)
+    push!(headers, "Authorization" => string("Basic ", encoded))
+    return headers
+end
+handle_auth!(headers, ::Tuple) = error("Unsupported auth tuple length")
+handle_auth!(headers, ::Any) = error("Unsupported auth type")
 
 """
     handle_extra_headers!(headers, extra_headers)
 
 Append additional headers from `extra_headers` to `headers`.
 """
-function handle_extra_headers!(headers, extra_headers)
-    append!(headers, normalise_extra_headers(extra_headers))
+handle_extra_headers!(headers, ::Nothing) = headers
+function handle_extra_headers!(headers, extra_headers::AbstractDict)
+    append!(headers, Pair{String,String}[convert(String, k) => convert(String, v) for (k, v) in extra_headers])
     return headers
 end
+function handle_extra_headers!(headers, extra_headers::AbstractVector)
+    for item in extra_headers
+        if item isa Pair
+            push!(headers, convert(String, first(item)) => convert(String, last(item)))
+        else
+            error("extra_headers entries must be pairs")
+        end
+    end
+    return headers
+end
+handle_extra_headers!(headers, ::Any) = error("Unsupported extra_headers type")
 
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
@@ -302,89 +332,6 @@ normalise_message(::Any) = error("Unsupported message type")
 normalise_message(message::AbstractString) = convert(String, message)
 
 """
-    normalise_priority(value)
-
-Convert `value` to a priority string for ntfy.sh.
-"""
-normalise_priority(::Any) = error("Unsupported priority type")
-normalise_priority(priority::AbstractString) = convert(String, priority)
-normalise_priority(priority::Integer) = string(priority)
-
-"""
-    normalise_title(value)
-
-Convert `value` to a title string or raise an error.
-"""
-normalise_title(::Any) = error("Unsupported title type")
-normalise_title(title::AbstractString) = convert(String, title)
-normalise_title(title::Symbol) = String(title)
-
-"""
-    normalise_tags(value)
-
-Convert `value` to a comma-separated tag string.
-"""
-normalise_tags(::Any) = error("Unsupported tags type")
-normalise_tags(tags::AbstractString) = convert(String, tags)
-function normalise_tags(tags::AbstractVector)
-    return join([convert(String, tag) for tag in tags], ",")
-end
-
-"""
-    normalise_click(value)
-
-Convert `value` to a click action URL string.
-"""
-normalise_click(::Any) = error("Unsupported click type")
-normalise_click(click::AbstractString) = convert(String, click)
-
-"""
-    normalise_attach(value)
-
-Convert `value` to an attachment URL string.
-"""
-normalise_attach(::Any) = error("Unsupported attach type")
-normalise_attach(attach::AbstractString) = convert(String, attach)
-
-"""
-    normalise_actions(value)
-
-Convert `value` to an actions header string.
-"""
-normalise_actions(::Any) = error("Unsupported actions type")
-normalise_actions(actions::AbstractString) = convert(String, actions)
-function normalise_actions(actions::AbstractVector)
-    return join([convert(String, action) for action in actions], "; ")
-end
-
-"""
-    normalise_email(value)
-
-Convert `value` to an email string.
-"""
-normalise_email(::Any) = error("Unsupported email type")
-normalise_email(email::AbstractString) = convert(String, email)
-
-"""
-    normalise_delay(value)
-
-Convert `value` to a delay string for scheduled delivery.
-"""
-normalise_delay(::Any) = error("Unsupported delay type")
-function normalise_delay(delay::AbstractString)
-    delay_str = convert(String, delay)
-    return isempty(delay_str) ? error("delay cannot be empty") : delay_str
-end
-
-"""
-    normalise_markdown(value)
-
-Convert `value` to a Markdown flag string.
-"""
-normalise_markdown(::Any) = error("Unsupported markdown type")
-normalise_markdown(flag::Bool) = flag ? "yes" : "no"
-
-"""
     normalise_base_url(value)
 
 Convert `value` to a base URL string, defaulting to `https://ntfy.sh` (or a configured
@@ -418,46 +365,6 @@ construction.
 function normalise_base_url_string(url::AbstractString)
     return String(rstrip(url, '/'))
 end
-
-"""
-    normalise_extra_headers(value)
-
-Convert `value` to a vector of string header pairs.
-"""
-normalise_extra_headers(::Nothing) = Pair{String,String}[]
-normalise_extra_headers(::Any) = error("Unsupported extra_headers type")
-function normalise_extra_headers(headers::AbstractDict)
-    return Pair{String,String}[convert(String, k) => convert(String, v) for (k, v) in headers]
-end
-function normalise_extra_headers(headers::AbstractVector)
-    pairs = Pair{String,String}[]
-    for item in headers
-        if item isa Pair
-            push!(pairs, convert(String, first(item)) => convert(String, last(item)))
-        else
-            error("extra_headers entries must be pairs")
-        end
-    end
-    return pairs
-end
-
-"""
-    normalise_auth(value)
-
-Convert `value` to an `Authorization` header value string.
-"""
-function normalise_auth(auth::AbstractString)
-    token = convert(String, auth)
-    return isempty(token) ? error("auth token cannot be empty") : string("Bearer ", token)
-end
-function normalise_auth(auth::Tuple{A,B}) where {A,B}
-    username, password = auth
-    creds = string(convert(String, username), ":", convert(String, password))
-    encoded = Base64.base64encode(creds)
-    return string("Basic ", encoded)
-end
-normalise_auth(::Tuple) = error("Unsupported auth tuple length")
-normalise_auth(::Any) = error("Unsupported auth type")
 
 """
     resolve_default_auth()

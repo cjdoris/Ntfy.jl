@@ -232,29 +232,31 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes", request_handler = Ntfy.DummyRequestHandler())
     end
 
-    @testset "normalise helpers" begin
-        @test Ntfy.normalise_priority(5) == "5"
-        @test_throws ErrorException Ntfy.normalise_priority(3.14)
+    @testset "handle helpers" begin
+        headers = Pair{String,String}[]
+        @test Ntfy.handle_priority!(copy(headers), nothing) == headers
+        @test Ntfy.handle_priority!(copy(headers), 5) == ["X-Priority" => "5"]
+        @test_throws ErrorException Ntfy.handle_priority!(headers, 3.14)
 
-        @test Ntfy.normalise_title(:mytitle) == "mytitle"
-        @test_throws ErrorException Ntfy.normalise_title(123)
+        @test Ntfy.handle_title!(copy(headers), :mytitle) == ["X-Title" => "mytitle"]
+        @test_throws ErrorException Ntfy.handle_title!(headers, 123)
 
-        @test Ntfy.normalise_tags("alpha,beta") == "alpha,beta"
-        @test_throws ErrorException Ntfy.normalise_tags(1)
+        @test Ntfy.handle_tags!(copy(headers), "alpha,beta") == ["X-Tags" => "alpha,beta"]
+        @test Ntfy.handle_tags!(copy(headers), ["alpha", "beta"]) == ["X-Tags" => "alpha,beta"]
+        @test_throws ErrorException Ntfy.handle_tags!(headers, 1)
 
-        @test Ntfy.normalise_click("https://example.com") == "https://example.com"
-        @test_throws ErrorException Ntfy.normalise_click(100)
+        @test Ntfy.handle_click!(copy(headers), "https://example.com") == ["X-Click" => "https://example.com"]
+        @test_throws ErrorException Ntfy.handle_click!(headers, 100)
 
-        @test Ntfy.normalise_attach("https://example.com/file.txt") == "https://example.com/file.txt"
-        @test_throws ErrorException Ntfy.normalise_attach(Any[])
+        @test Ntfy.handle_attach!(copy(headers), "https://example.com/file.txt") == ["X-Attach" => "https://example.com/file.txt"]
+        @test_throws ErrorException Ntfy.handle_attach!(headers, Any[])
 
-        @test Ntfy.normalise_actions("view, Open") == "view, Open"
-        @test_throws ErrorException Ntfy.normalise_actions(42)
+        @test Ntfy.handle_actions!(copy(headers), "view, Open") == ["X-Actions" => "view, Open"]
+        @test Ntfy.handle_actions!(copy(headers), ["view, Open", "dismiss"]) == ["X-Actions" => "view, Open; dismiss"]
+        @test_throws ErrorException Ntfy.handle_actions!(headers, 42)
 
-        @test_throws ErrorException Ntfy.normalise_email(123)
-
-        @test Ntfy.normalise_extra_headers(Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
-        @test_throws ErrorException Ntfy.normalise_extra_headers(42)
+        @test Ntfy.handle_extra_headers!(copy(headers), Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
+        @test_throws ErrorException Ntfy.handle_extra_headers!(headers, 42)
     end
 
     @testset "request handler" begin
