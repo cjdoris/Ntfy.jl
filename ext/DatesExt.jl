@@ -3,28 +3,16 @@ module DatesExt
 using Dates
 using Ntfy
 
-function Ntfy.normalise_delay(date::Date)
-    return string(floor(Int, datetime2unix(DateTime(date))))
-end
+Ntfy.handle_delay!(headers, date::Date) = Ntfy.handle_delay!(headers, string(floor(Int, datetime2unix(DateTime(date)))))
 
-function Ntfy.normalise_delay(datetime::DateTime)
-    return string(floor(Int, datetime2unix(datetime)))
-end
+Ntfy.handle_delay!(headers, datetime::DateTime) = Ntfy.handle_delay!(headers, string(floor(Int, datetime2unix(datetime))))
 
-function Ntfy.normalise_delay(period::Second)
-    return string(period.value, " ", abs(period.value) == 1 ? "second" : "seconds")
-end
+Ntfy.handle_delay!(headers, period::Second) = Ntfy.handle_delay!(headers, string(period.value, " ", abs(period.value) == 1 ? "second" : "seconds"))
 
-function Ntfy.normalise_delay(period::Minute)
-    return string(period.value, " ", abs(period.value) == 1 ? "minute" : "minutes")
-end
+Ntfy.handle_delay!(headers, period::Minute) = Ntfy.handle_delay!(headers, string(period.value, " ", abs(period.value) == 1 ? "minute" : "minutes"))
 
-function Ntfy.normalise_delay(period::Hour)
-    return string(period.value, " ", abs(period.value) == 1 ? "hour" : "hours")
-end
+Ntfy.handle_delay!(headers, period::Hour) = Ntfy.handle_delay!(headers, string(period.value, " ", abs(period.value) == 1 ? "hour" : "hours"))
 
-function Ntfy.normalise_delay(period::Day)
-    return string(period.value, " ", abs(period.value) == 1 ? "day" : "days")
-end
+Ntfy.handle_delay!(headers, period::Day) = Ntfy.handle_delay!(headers, string(period.value, " ", abs(period.value) == 1 ? "day" : "days"))
 
 end

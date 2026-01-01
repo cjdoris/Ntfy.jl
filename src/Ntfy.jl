@@ -8,7 +8,13 @@ using Preferences
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 const BASE_URL_PREFERENCE = "base_url"
-const BASE_URL_ENVIRONMENT = "JULIA_NTFY_BASE_URL"
+const BASE_URL_ENVIRONMENT = "NTFY_BASE_URL"
+const USER_PREFERENCE = "user"
+const USER_ENVIRONMENT = "NTFY_USER"
+const PASSWORD_PREFERENCE = "password"
+const PASSWORD_ENVIRONMENT = "NTFY_PASSWORD"
+const TOKEN_PREFERENCE = "token"
+const TOKEN_ENVIRONMENT = "NTFY_TOKEN"
 
 struct RequestHandler end
 
@@ -24,6 +30,22 @@ Base.@kwdef mutable struct DummyRequestHandler
     requests::Vector{Any} = Any[]
     status::Int = 200
     body::String = "dummy response"
+end
+
+"""
+    getpref(pref, envvar)
+
+Return the configured preference identified by `pref` if set, otherwise fall back
+to the environment variable `envvar`. Returns `nothing` when neither value is
+available. The return value is always a `String` when present.
+"""
+function getpref(pref, envvar)
+    preference_value = @load_preference(pref, nothing)
+    if preference_value !== nothing
+        return convert(String, preference_value)
+    end
+    env_value = get(ENV, envvar, nothing)
+    return env_value === nothing ? nothing : convert(String, env_value)
 end
 
 function format_message(template, value, is_error::Bool)
@@ -48,6 +70,172 @@ function format_message(template, value, is_error::Bool)
 end
 
 """
+    handle_priority!(headers, priority)
+
+Add an `X-Priority` header to `headers` when `priority` is provided.
+"""
+handle_priority!(headers, ::Nothing) = headers
+function handle_priority!(headers, priority::AbstractString)
+    push!(headers, "X-Priority" => convert(String, priority))
+    return headers
+end
+handle_priority!(headers, priority::Integer) = handle_priority!(headers, string(priority))
+handle_priority!(headers, ::Any) = error("Unsupported priority type")
+
+"""
+    handle_title!(headers, title)
+
+Add an `X-Title` header to `headers` when `title` is provided.
+"""
+handle_title!(headers, ::Nothing) = headers
+function handle_title!(headers, title::AbstractString)
+    push!(headers, "X-Title" => convert(String, title))
+    return headers
+end
+handle_title!(headers, title::Symbol) = handle_title!(headers, String(title))
+handle_title!(headers, ::Any) = error("Unsupported title type")
+
+"""
+    handle_tags!(headers, tags)
+
+Add an `X-Tags` header to `headers` when `tags` is provided.
+"""
+handle_tags!(headers, ::Nothing) = headers
+function handle_tags!(headers, tags::AbstractString)
+    push!(headers, "X-Tags" => convert(String, tags))
+    return headers
+end
+handle_tags!(headers, tags::AbstractVector) = handle_tags!(headers, join([convert(String, tag) for tag in tags], ","))
+handle_tags!(headers, ::Any) = error("Unsupported tags type")
+
+"""
+    handle_click!(headers, click)
+
+Add an `X-Click` header to `headers` when `click` is provided.
+"""
+handle_click!(headers, ::Nothing) = headers
+function handle_click!(headers, click::AbstractString)
+    push!(headers, "X-Click" => convert(String, click))
+    return headers
+end
+handle_click!(headers, ::Any) = error("Unsupported click type")
+
+"""
+    handle_attach!(headers, attach)
+
+Add an `X-Attach` header to `headers` when `attach` is provided.
+"""
+handle_attach!(headers, ::Nothing) = headers
+function handle_attach!(headers, attach::AbstractString)
+    push!(headers, "X-Attach" => convert(String, attach))
+    return headers
+end
+handle_attach!(headers, ::Any) = error("Unsupported attach type")
+
+"""
+    handle_actions!(headers, actions)
+
+Add an `X-Actions` header to `headers` when `actions` is provided.
+"""
+handle_actions!(headers, ::Nothing) = headers
+function handle_actions!(headers, actions::AbstractString)
+    push!(headers, "X-Actions" => convert(String, actions))
+    return headers
+end
+handle_actions!(headers, actions::AbstractVector) = handle_actions!(headers, join([convert(String, action) for action in actions], "; "))
+handle_actions!(headers, ::Any) = error("Unsupported actions type")
+
+"""
+    handle_email!(headers, email)
+
+Add an `X-Email` header to `headers` when `email` is provided.
+"""
+handle_email!(headers, ::Nothing) = headers
+function handle_email!(headers, email::AbstractString)
+    push!(headers, "X-Email" => convert(String, email))
+    return headers
+end
+handle_email!(headers, ::Any) = error("Unsupported email type")
+
+"""
+    handle_markdown!(headers, markdown)
+
+Add an `X-Markdown` header to `headers` when Markdown support is explicitly
+requested.
+"""
+handle_markdown!(headers, ::Nothing) = headers
+function handle_markdown!(headers, markdown::Bool)
+    if markdown
+        push!(headers, "X-Markdown" => "yes")
+    end
+    return headers
+end
+handle_markdown!(headers, ::Any) = error("Unsupported markdown type")
+
+"""
+    handle_delay!(headers, delay)
+
+Add an `X-Delay` header to `headers` when `delay` is provided.
+"""
+handle_delay!(headers, ::Nothing) = headers
+function handle_delay!(headers, delay::AbstractString)
+    delay_str = convert(String, delay)
+    isempty(delay_str) && error("delay cannot be empty")
+    push!(headers, "X-Delay" => delay_str)
+    return headers
+end
+handle_delay!(headers, ::Any) = error("Unsupported delay type")
+
+"""
+    handle_auth!(headers, auth)
+
+Add an `Authorization` header to `headers` based on the provided `auth`
+argument or configured defaults. No header is added when no credentials are
+available.
+"""
+function handle_auth!(headers, ::Nothing)
+    selected_auth = resolve_default_auth()
+    return selected_auth === nothing ? headers : handle_auth!(headers, selected_auth)
+end
+function handle_auth!(headers, auth::AbstractString)
+    token = convert(String, auth)
+    isempty(token) && error("auth token cannot be empty")
+    push!(headers, "Authorization" => string("Bearer ", token))
+    return headers
+end
+function handle_auth!(headers, auth::Tuple{A,B}) where {A,B}
+    username, password = auth
+    creds = string(convert(String, username), ":", convert(String, password))
+    encoded = Base64.base64encode(creds)
+    push!(headers, "Authorization" => string("Basic ", encoded))
+    return headers
+end
+handle_auth!(headers, ::Tuple) = error("Unsupported auth tuple length")
+handle_auth!(headers, ::Any) = error("Unsupported auth type")
+
+"""
+    handle_extra_headers!(headers, extra_headers)
+
+Append additional headers from `extra_headers` to `headers`.
+"""
+handle_extra_headers!(headers, ::Nothing) = headers
+function handle_extra_headers!(headers, extra_headers::AbstractDict)
+    append!(headers, Pair{String,String}[convert(String, k) => convert(String, v) for (k, v) in extra_headers])
+    return headers
+end
+function handle_extra_headers!(headers, extra_headers::AbstractVector)
+    for item in extra_headers
+        if item isa Pair
+            push!(headers, convert(String, first(item)) => convert(String, last(item)))
+        else
+            error("extra_headers entries must be pairs")
+        end
+    end
+    return headers
+end
+handle_extra_headers!(headers, ::Any) = error("Unsupported extra_headers type")
+
+"""
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
@@ -67,40 +255,17 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
     url = build_url(base_url, topic_name)
     headers = Pair{String,String}[]
 
-    if priority !== nothing
-        push!(headers, "X-Priority" => normalise_priority(priority)::String)
-    end
-    if title !== nothing
-        push!(headers, "X-Title" => normalise_title(title)::String)
-    end
-    if tags !== nothing
-        push!(headers, "X-Tags" => normalise_tags(tags)::String)
-    end
-    if click !== nothing
-        push!(headers, "X-Click" => normalise_click(click)::String)
-    end
-    if attach !== nothing
-        push!(headers, "X-Attach" => normalise_attach(attach)::String)
-    end
-    if actions !== nothing
-        push!(headers, "X-Actions" => normalise_actions(actions)::String)
-    end
-    if email !== nothing
-        push!(headers, "X-Email" => normalise_email(email)::String)
-    end
-    if markdown === true
-        push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
-    elseif markdown !== false && markdown !== nothing
-        normalise_markdown(markdown)
-    end
-    if delay !== nothing
-        push!(headers, "X-Delay" => normalise_delay(delay)::String)
-    end
-
-    if auth !== nothing
-        push!(headers, "Authorization" => normalise_auth(auth)::String)
-    end
-    append!(headers, normalise_extra_headers(extra_headers))
+    handle_priority!(headers, priority)
+    handle_title!(headers, title)
+    handle_tags!(headers, tags)
+    handle_click!(headers, click)
+    handle_attach!(headers, attach)
+    handle_actions!(headers, actions)
+    handle_email!(headers, email)
+    handle_markdown!(headers, markdown)
+    handle_delay!(headers, delay)
+    handle_auth!(headers, auth)
+    handle_extra_headers!(headers, extra_headers)
 
     req = (method = "POST", url = url, headers = headers, body = message)
 
@@ -155,89 +320,6 @@ normalise_message(::Any) = error("Unsupported message type")
 normalise_message(message::AbstractString) = convert(String, message)
 
 """
-    normalise_priority(value)
-
-Convert `value` to a priority string for ntfy.sh.
-"""
-normalise_priority(::Any) = error("Unsupported priority type")
-normalise_priority(priority::AbstractString) = convert(String, priority)
-normalise_priority(priority::Integer) = string(priority)
-
-"""
-    normalise_title(value)
-
-Convert `value` to a title string or raise an error.
-"""
-normalise_title(::Any) = error("Unsupported title type")
-normalise_title(title::AbstractString) = convert(String, title)
-normalise_title(title::Symbol) = String(title)
-
-"""
-    normalise_tags(value)
-
-Convert `value` to a comma-separated tag string.
-"""
-normalise_tags(::Any) = error("Unsupported tags type")
-normalise_tags(tags::AbstractString) = convert(String, tags)
-function normalise_tags(tags::AbstractVector)
-    return join([convert(String, tag) for tag in tags], ",")
-end
-
-"""
-    normalise_click(value)
-
-Convert `value` to a click action URL string.
-"""
-normalise_click(::Any) = error("Unsupported click type")
-normalise_click(click::AbstractString) = convert(String, click)
-
-"""
-    normalise_attach(value)
-
-Convert `value` to an attachment URL string.
-"""
-normalise_attach(::Any) = error("Unsupported attach type")
-normalise_attach(attach::AbstractString) = convert(String, attach)
-
-"""
-    normalise_actions(value)
-
-Convert `value` to an actions header string.
-"""
-normalise_actions(::Any) = error("Unsupported actions type")
-normalise_actions(actions::AbstractString) = convert(String, actions)
-function normalise_actions(actions::AbstractVector)
-    return join([convert(String, action) for action in actions], "; ")
-end
-
-"""
-    normalise_email(value)
-
-Convert `value` to an email string.
-"""
-normalise_email(::Any) = error("Unsupported email type")
-normalise_email(email::AbstractString) = convert(String, email)
-
-"""
-    normalise_delay(value)
-
-Convert `value` to a delay string for scheduled delivery.
-"""
-normalise_delay(::Any) = error("Unsupported delay type")
-function normalise_delay(delay::AbstractString)
-    delay_str = convert(String, delay)
-    return isempty(delay_str) ? error("delay cannot be empty") : delay_str
-end
-
-"""
-    normalise_markdown(value)
-
-Convert `value` to a Markdown flag string.
-"""
-normalise_markdown(::Any) = error("Unsupported markdown type")
-normalise_markdown(flag::Bool) = flag ? "yes" : "no"
-
-"""
     normalise_base_url(value)
 
 Convert `value` to a base URL string, defaulting to `https://ntfy.sh` (or a configured
@@ -254,12 +336,11 @@ end
     resolve_default_base_url()
 
 Resolve the base URL by first checking package preferences, then the
-`JULIA_NTFY_BASE_URL` environment variable, and finally falling back to the
+`NTFY_BASE_URL` environment variable, and finally falling back to the
 default ntfy.sh URL.
 """
 function resolve_default_base_url()
-    preference_url = @load_preference(BASE_URL_PREFERENCE, nothing)
-    url = preference_url === nothing ? get(ENV, BASE_URL_ENVIRONMENT, nothing) : preference_url
+    url = getpref(BASE_URL_PREFERENCE, BASE_URL_ENVIRONMENT)
     return url === nothing ? DEFAULT_BASE_URL : normalise_base_url(url)
 end
 
@@ -274,45 +355,27 @@ function normalise_base_url_string(url::AbstractString)
 end
 
 """
-    normalise_extra_headers(value)
+    resolve_default_auth()
 
-Convert `value` to a vector of string header pairs.
+Determine the default `auth` configuration using preferences first and then
+environment variables. Uses the configured token when available, otherwise
+falls back to a basic auth username/password pair. Returns `nothing` when no
+credentials are configured.
 """
-normalise_extra_headers(::Nothing) = Pair{String,String}[]
-normalise_extra_headers(::Any) = error("Unsupported extra_headers type")
-function normalise_extra_headers(headers::AbstractDict)
-    return Pair{String,String}[convert(String, k) => convert(String, v) for (k, v) in headers]
-end
-function normalise_extra_headers(headers::AbstractVector)
-    pairs = Pair{String,String}[]
-    for item in headers
-        if item isa Pair
-            push!(pairs, convert(String, first(item)) => convert(String, last(item)))
-        else
-            error("extra_headers entries must be pairs")
-        end
+function resolve_default_auth()
+    token = getpref(TOKEN_PREFERENCE, TOKEN_ENVIRONMENT)
+    if token !== nothing
+        return token
     end
-    return pairs
-end
 
-"""
-    normalise_auth(value)
+    user = getpref(USER_PREFERENCE, USER_ENVIRONMENT)
+    password = getpref(PASSWORD_PREFERENCE, PASSWORD_ENVIRONMENT)
+    if user !== nothing && password !== nothing
+        return (user, password)
+    end
 
-Convert `value` to an `Authorization` header value string.
-"""
-normalise_auth(auth::AbstractString) = convert(String, auth)
-function normalise_auth(auth::Tuple{A,B}) where {A,B}
-    username, password = auth
-    creds = string(convert(String, username), ":", convert(String, password))
-    encoded = Base64.base64encode(creds)
-    return string("Basic ", encoded)
+    return nothing
 end
-function normalise_auth(auth::Tuple{T}) where {T}
-    token = convert(String, only(auth))
-    return string("Bearer ", token)
-end
-normalise_auth(::Tuple) = error("Unsupported auth tuple length")
-normalise_auth(::Any) = error("Unsupported auth type")
 
 function build_url(base_url::AbstractString, topic::AbstractString)
     stripped = rstrip(base_url, '/')

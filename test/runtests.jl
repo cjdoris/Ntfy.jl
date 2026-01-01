@@ -7,6 +7,10 @@ using Base64
 using Ntfy
 
 ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
+Preferences.delete_preferences!(Ntfy, "token", "user", "password"; force = true, block_inheritance = true)
+pop!(ENV, "NTFY_TOKEN", nothing)
+pop!(ENV, "NTFY_USER", nothing)
+pop!(ENV, "NTFY_PASSWORD", nothing)
 
 @testset "ntfy" begin
     @testset "defaults" begin
@@ -23,18 +27,13 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
         handler = Ntfy.DummyRequestHandler()
         Ntfy.ntfy("secrets", "payload"; auth = "Custom", request_handler = handler)
         req = only(handler.requests)
-        @test req.headers == ["Authorization" => "Custom"]
+        @test req.headers == ["Authorization" => "Bearer Custom"]
 
         handler = Ntfy.DummyRequestHandler()
         Ntfy.ntfy("secrets", "payload"; auth = ("user", "pass"), request_handler = handler)
         req = only(handler.requests)
         encoded = Base64.base64encode("user:pass")
         @test req.headers == ["Authorization" => "Basic $(encoded)"]
-
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("secrets", "payload"; auth = ("token",), request_handler = handler)
-        req = only(handler.requests)
-        @test req.headers == ["Authorization" => "Bearer token"]
 
         handler = Ntfy.DummyRequestHandler()
         Ntfy.ntfy(
@@ -54,7 +53,43 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
         ]
 
         @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = 123, request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("token",), request_handler = Ntfy.DummyRequestHandler())
         @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("too", "many", "values"), request_handler = Ntfy.DummyRequestHandler())
+
+        @testset "defaults from preferences" begin
+            mktempdir() do prefs_path
+                withenv("JULIA_PREFERENCES_PATH" => prefs_path) do
+                    Preferences.set_preferences!(Ntfy, "token" => "pref-token"; force = true)
+
+                    handler = Ntfy.DummyRequestHandler()
+                    Ntfy.ntfy("defaults", "payload"; request_handler = handler)
+                    req = only(handler.requests)
+                    @test req.headers == ["Authorization" => "Bearer pref-token"]
+
+                    Preferences.delete_preferences!(Ntfy, "token"; force = true, block_inheritance = true)
+                    Preferences.set_preferences!(Ntfy, "user" => "pref-user", "password" => "pref-pass"; force = true)
+
+                    handler = Ntfy.DummyRequestHandler()
+                    Ntfy.ntfy("defaults", "payload"; request_handler = handler)
+                    req = only(handler.requests)
+                    encoded = Base64.base64encode("pref-user:pref-pass")
+                    @test req.headers == ["Authorization" => "Basic $(encoded)"]
+
+                    Preferences.delete_preferences!(Ntfy, "token", "user", "password"; force = true, block_inheritance = true)
+
+                    withenv(
+                        "NTFY_TOKEN" => "env-token",
+                        "NTFY_USER" => "env-user",
+                        "NTFY_PASSWORD" => "env-pass",
+                    ) do
+                        handler = Ntfy.DummyRequestHandler()
+                        Ntfy.ntfy("defaults", "payload"; request_handler = handler)
+                        req = only(handler.requests)
+                        @test req.headers == ["Authorization" => "Bearer env-token"]
+                    end
+                end
+            end
+        end
     end
 
     @testset "headers" begin
@@ -108,7 +143,7 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
             mktempdir() do prefs_path
                 withenv(
                     "JULIA_PREFERENCES_PATH" => prefs_path,
-                    "JULIA_NTFY_BASE_URL" => "https://env.example/",
+                    "NTFY_BASE_URL" => "https://env.example/",
                 ) do
                     Preferences.set_preferences!(Ntfy, "base_url" => "https://prefs.example/"; force = true)
 
@@ -125,7 +160,7 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
                 handler = Ntfy.DummyRequestHandler()
                 withenv(
                     "JULIA_PREFERENCES_PATH" => prefs_path,
-                    "JULIA_NTFY_BASE_URL" => "https://env.example/",
+                    "NTFY_BASE_URL" => "https://env.example/",
                 ) do
                     Preferences.delete_preferences!(Ntfy, Ntfy.BASE_URL_PREFERENCE; force = true, block_inheritance = true)
                     Ntfy.ntfy("env-topic", "hi"; title = "unused", request_handler=handler)
@@ -197,29 +232,31 @@ ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
         @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes", request_handler = Ntfy.DummyRequestHandler())
     end
 
-    @testset "normalise helpers" begin
-        @test Ntfy.normalise_priority(5) == "5"
-        @test_throws ErrorException Ntfy.normalise_priority(3.14)
+    @testset "handle helpers" begin
+        headers = Pair{String,String}[]
+        @test Ntfy.handle_priority!(copy(headers), nothing) == headers
+        @test Ntfy.handle_priority!(copy(headers), 5) == ["X-Priority" => "5"]
+        @test_throws ErrorException Ntfy.handle_priority!(headers, 3.14)
 
-        @test Ntfy.normalise_title(:mytitle) == "mytitle"
-        @test_throws ErrorException Ntfy.normalise_title(123)
+        @test Ntfy.handle_title!(copy(headers), :mytitle) == ["X-Title" => "mytitle"]
+        @test_throws ErrorException Ntfy.handle_title!(headers, 123)
 
-        @test Ntfy.normalise_tags("alpha,beta") == "alpha,beta"
-        @test_throws ErrorException Ntfy.normalise_tags(1)
+        @test Ntfy.handle_tags!(copy(headers), "alpha,beta") == ["X-Tags" => "alpha,beta"]
+        @test Ntfy.handle_tags!(copy(headers), ["alpha", "beta"]) == ["X-Tags" => "alpha,beta"]
+        @test_throws ErrorException Ntfy.handle_tags!(headers, 1)
 
-        @test Ntfy.normalise_click("https://example.com") == "https://example.com"
-        @test_throws ErrorException Ntfy.normalise_click(100)
+        @test Ntfy.handle_click!(copy(headers), "https://example.com") == ["X-Click" => "https://example.com"]
+        @test_throws ErrorException Ntfy.handle_click!(headers, 100)
 
-        @test Ntfy.normalise_attach("https://example.com/file.txt") == "https://example.com/file.txt"
-        @test_throws ErrorException Ntfy.normalise_attach(Any[])
+        @test Ntfy.handle_attach!(copy(headers), "https://example.com/file.txt") == ["X-Attach" => "https://example.com/file.txt"]
+        @test_throws ErrorException Ntfy.handle_attach!(headers, Any[])
 
-        @test Ntfy.normalise_actions("view, Open") == "view, Open"
-        @test_throws ErrorException Ntfy.normalise_actions(42)
+        @test Ntfy.handle_actions!(copy(headers), "view, Open") == ["X-Actions" => "view, Open"]
+        @test Ntfy.handle_actions!(copy(headers), ["view, Open", "dismiss"]) == ["X-Actions" => "view, Open; dismiss"]
+        @test_throws ErrorException Ntfy.handle_actions!(headers, 42)
 
-        @test_throws ErrorException Ntfy.normalise_email(123)
-
-        @test Ntfy.normalise_extra_headers(Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
-        @test_throws ErrorException Ntfy.normalise_extra_headers(42)
+        @test Ntfy.handle_extra_headers!(copy(headers), Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
+        @test_throws ErrorException Ntfy.handle_extra_headers!(headers, 42)
     end
 
     @testset "request handler" begin
