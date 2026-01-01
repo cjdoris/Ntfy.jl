@@ -8,7 +8,13 @@ using Preferences
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 const BASE_URL_PREFERENCE = "base_url"
-const BASE_URL_ENVIRONMENT = "JULIA_NTFY_BASE_URL"
+const BASE_URL_ENVIRONMENT = "NTFY_BASE_URL"
+const USER_PREFERENCE = "user"
+const USER_ENVIRONMENT = "NTFY_USER"
+const PASSWORD_PREFERENCE = "password"
+const PASSWORD_ENVIRONMENT = "NTFY_PASSWORD"
+const TOKEN_PREFERENCE = "token"
+const TOKEN_ENVIRONMENT = "NTFY_TOKEN"
 
 struct RequestHandler end
 
@@ -24,6 +30,22 @@ Base.@kwdef mutable struct DummyRequestHandler
     requests::Vector{Any} = Any[]
     status::Int = 200
     body::String = "dummy response"
+end
+
+"""
+    getpref(pref, envvar)
+
+Return the configured preference identified by `pref` if set, otherwise fall back
+to the environment variable `envvar`. Returns `nothing` when neither value is
+available. The return value is always a `String` when present.
+"""
+function getpref(pref, envvar)
+    preference_value = @load_preference(pref, nothing)
+    if preference_value !== nothing
+        return convert(String, preference_value)
+    end
+    env_value = get(ENV, envvar, nothing)
+    return env_value === nothing ? nothing : convert(String, env_value)
 end
 
 function format_message(template, value, is_error::Bool)
@@ -97,8 +119,9 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
         push!(headers, "X-Delay" => normalise_delay(delay)::String)
     end
 
-    if auth !== nothing
-        push!(headers, "Authorization" => normalise_auth(auth)::String)
+    selected_auth = auth === nothing ? resolve_default_auth() : auth
+    if selected_auth !== nothing
+        push!(headers, "Authorization" => normalise_auth(selected_auth)::String)
     end
     append!(headers, normalise_extra_headers(extra_headers))
 
@@ -254,12 +277,11 @@ end
     resolve_default_base_url()
 
 Resolve the base URL by first checking package preferences, then the
-`JULIA_NTFY_BASE_URL` environment variable, and finally falling back to the
+`NTFY_BASE_URL` environment variable, and finally falling back to the
 default ntfy.sh URL.
 """
 function resolve_default_base_url()
-    preference_url = @load_preference(BASE_URL_PREFERENCE, nothing)
-    url = preference_url === nothing ? get(ENV, BASE_URL_ENVIRONMENT, nothing) : preference_url
+    url = getpref(BASE_URL_PREFERENCE, BASE_URL_ENVIRONMENT)
     return url === nothing ? DEFAULT_BASE_URL : normalise_base_url(url)
 end
 
@@ -300,19 +322,41 @@ end
 
 Convert `value` to an `Authorization` header value string.
 """
-normalise_auth(auth::AbstractString) = convert(String, auth)
+function normalise_auth(auth::AbstractString)
+    token = convert(String, auth)
+    return isempty(token) ? error("auth token cannot be empty") : string("Bearer ", token)
+end
 function normalise_auth(auth::Tuple{A,B}) where {A,B}
     username, password = auth
     creds = string(convert(String, username), ":", convert(String, password))
     encoded = Base64.base64encode(creds)
     return string("Basic ", encoded)
 end
-function normalise_auth(auth::Tuple{T}) where {T}
-    token = convert(String, only(auth))
-    return string("Bearer ", token)
-end
 normalise_auth(::Tuple) = error("Unsupported auth tuple length")
 normalise_auth(::Any) = error("Unsupported auth type")
+
+"""
+    resolve_default_auth()
+
+Determine the default `auth` configuration using preferences first and then
+environment variables. Uses the configured token when available, otherwise
+falls back to a basic auth username/password pair. Returns `nothing` when no
+credentials are configured.
+"""
+function resolve_default_auth()
+    token = getpref(TOKEN_PREFERENCE, TOKEN_ENVIRONMENT)
+    if token !== nothing
+        return token
+    end
+
+    user = getpref(USER_PREFERENCE, USER_ENVIRONMENT)
+    password = getpref(PASSWORD_PREFERENCE, PASSWORD_ENVIRONMENT)
+    if user !== nothing && password !== nothing
+        return (user, password)
+    end
+
+    return nothing
+end
 
 function build_url(base_url::AbstractString, topic::AbstractString)
     stripped = rstrip(base_url, '/')

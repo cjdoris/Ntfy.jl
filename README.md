@@ -52,11 +52,13 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 - `extra_headers`: Additional headers as a vector of pairs or dictionary.
 - `base_url`: Alternative base server URL. When omitted, `ntfy` checks the
   `base_url` package preference (see [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl))
-  or the `JULIA_NTFY_BASE_URL` environment variable before falling back to
+  or the `NTFY_BASE_URL` environment variable before falling back to
   `https://ntfy.sh`.
 - `auth`: Optional authentication. Provide a 2-tuple `(username, password)` for
-  Basic auth, a 1-tuple `(token,)` for Bearer tokens, or a string containing the
-  literal `Authorization` header value.
+  Basic auth, or a string token for Bearer authentication. When omitted, `ntfy`
+  checks the `token`, `user`, and `password` preferences (or the environment
+  variables `NTFY_TOKEN`, `NTFY_USER`, `NTFY_PASSWORD`) to build the
+  `Authorization` header.
 
 Raises an error if the server does not return a 2xx response. Returns nothing on success.
 
