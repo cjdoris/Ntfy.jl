@@ -79,10 +79,7 @@ function handle_priority!(headers, priority::AbstractString)
     push!(headers, "X-Priority" => convert(String, priority))
     return headers
 end
-function handle_priority!(headers, priority::Integer)
-    push!(headers, "X-Priority" => string(priority))
-    return headers
-end
+handle_priority!(headers, priority::Integer) = handle_priority!(headers, string(priority))
 handle_priority!(headers, ::Any) = error("Unsupported priority type")
 
 """
@@ -95,10 +92,7 @@ function handle_title!(headers, title::AbstractString)
     push!(headers, "X-Title" => convert(String, title))
     return headers
 end
-function handle_title!(headers, title::Symbol)
-    push!(headers, "X-Title" => String(title))
-    return headers
-end
+handle_title!(headers, title::Symbol) = handle_title!(headers, String(title))
 handle_title!(headers, ::Any) = error("Unsupported title type")
 
 """
@@ -111,10 +105,7 @@ function handle_tags!(headers, tags::AbstractString)
     push!(headers, "X-Tags" => convert(String, tags))
     return headers
 end
-function handle_tags!(headers, tags::AbstractVector)
-    push!(headers, "X-Tags" => join([convert(String, tag) for tag in tags], ","))
-    return headers
-end
+handle_tags!(headers, tags::AbstractVector) = handle_tags!(headers, join([convert(String, tag) for tag in tags], ","))
 handle_tags!(headers, ::Any) = error("Unsupported tags type")
 
 """
@@ -151,10 +142,7 @@ function handle_actions!(headers, actions::AbstractString)
     push!(headers, "X-Actions" => convert(String, actions))
     return headers
 end
-function handle_actions!(headers, actions::AbstractVector)
-    push!(headers, "X-Actions" => join([convert(String, action) for action in actions], "; "))
-    return headers
-end
+handle_actions!(headers, actions::AbstractVector) = handle_actions!(headers, join([convert(String, action) for action in actions], "; "))
 handle_actions!(headers, ::Any) = error("Unsupported actions type")
 
 """
