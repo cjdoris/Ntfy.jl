@@ -70,6 +70,154 @@ function format_message(template, value, is_error::Bool)
 end
 
 """
+    handle_priority!(headers, priority)
+
+Add an `X-Priority` header to `headers` when `priority` is provided.
+"""
+function handle_priority!(headers, priority)
+    if priority === nothing
+        return headers
+    end
+    push!(headers, "X-Priority" => normalise_priority(priority)::String)
+    return headers
+end
+
+"""
+    handle_title!(headers, title)
+
+Add an `X-Title` header to `headers` when `title` is provided.
+"""
+function handle_title!(headers, title)
+    if title === nothing
+        return headers
+    end
+    push!(headers, "X-Title" => normalise_title(title)::String)
+    return headers
+end
+
+"""
+    handle_tags!(headers, tags)
+
+Add an `X-Tags` header to `headers` when `tags` is provided.
+"""
+function handle_tags!(headers, tags)
+    if tags === nothing
+        return headers
+    end
+    push!(headers, "X-Tags" => normalise_tags(tags)::String)
+    return headers
+end
+
+"""
+    handle_click!(headers, click)
+
+Add an `X-Click` header to `headers` when `click` is provided.
+"""
+function handle_click!(headers, click)
+    if click === nothing
+        return headers
+    end
+    push!(headers, "X-Click" => normalise_click(click)::String)
+    return headers
+end
+
+"""
+    handle_attach!(headers, attach)
+
+Add an `X-Attach` header to `headers` when `attach` is provided.
+"""
+function handle_attach!(headers, attach)
+    if attach === nothing
+        return headers
+    end
+    push!(headers, "X-Attach" => normalise_attach(attach)::String)
+    return headers
+end
+
+"""
+    handle_actions!(headers, actions)
+
+Add an `X-Actions` header to `headers` when `actions` is provided.
+"""
+function handle_actions!(headers, actions)
+    if actions === nothing
+        return headers
+    end
+    push!(headers, "X-Actions" => normalise_actions(actions)::String)
+    return headers
+end
+
+"""
+    handle_email!(headers, email)
+
+Add an `X-Email` header to `headers` when `email` is provided.
+"""
+function handle_email!(headers, email)
+    if email === nothing
+        return headers
+    end
+    push!(headers, "X-Email" => normalise_email(email)::String)
+    return headers
+end
+
+"""
+    handle_markdown!(headers, markdown)
+
+Add an `X-Markdown` header to `headers` when Markdown support is explicitly
+requested.
+"""
+function handle_markdown!(headers, markdown)
+    if markdown === true
+        push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
+        return headers
+    elseif markdown === false || markdown === nothing
+        return headers
+    end
+
+    normalise_markdown(markdown)
+    return headers
+end
+
+"""
+    handle_delay!(headers, delay)
+
+Add an `X-Delay` header to `headers` when `delay` is provided.
+"""
+function handle_delay!(headers, delay)
+    if delay === nothing
+        return headers
+    end
+    push!(headers, "X-Delay" => normalise_delay(delay)::String)
+    return headers
+end
+
+"""
+    handle_auth!(headers, auth)
+
+Add an `Authorization` header to `headers` based on the provided `auth`
+argument or configured defaults. No header is added when no credentials are
+available.
+"""
+function handle_auth!(headers, auth)
+    selected_auth = auth === nothing ? resolve_default_auth() : auth
+    if selected_auth === nothing
+        return headers
+    end
+    push!(headers, "Authorization" => normalise_auth(selected_auth)::String)
+    return headers
+end
+
+"""
+    handle_extra_headers!(headers, extra_headers)
+
+Append additional headers from `extra_headers` to `headers`.
+"""
+function handle_extra_headers!(headers, extra_headers)
+    append!(headers, normalise_extra_headers(extra_headers))
+    return headers
+end
+
+"""
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
         extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
@@ -89,41 +237,17 @@ function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, cli
     url = build_url(base_url, topic_name)
     headers = Pair{String,String}[]
 
-    if priority !== nothing
-        push!(headers, "X-Priority" => normalise_priority(priority)::String)
-    end
-    if title !== nothing
-        push!(headers, "X-Title" => normalise_title(title)::String)
-    end
-    if tags !== nothing
-        push!(headers, "X-Tags" => normalise_tags(tags)::String)
-    end
-    if click !== nothing
-        push!(headers, "X-Click" => normalise_click(click)::String)
-    end
-    if attach !== nothing
-        push!(headers, "X-Attach" => normalise_attach(attach)::String)
-    end
-    if actions !== nothing
-        push!(headers, "X-Actions" => normalise_actions(actions)::String)
-    end
-    if email !== nothing
-        push!(headers, "X-Email" => normalise_email(email)::String)
-    end
-    if markdown === true
-        push!(headers, "X-Markdown" => normalise_markdown(markdown)::String)
-    elseif markdown !== false && markdown !== nothing
-        normalise_markdown(markdown)
-    end
-    if delay !== nothing
-        push!(headers, "X-Delay" => normalise_delay(delay)::String)
-    end
-
-    selected_auth = auth === nothing ? resolve_default_auth() : auth
-    if selected_auth !== nothing
-        push!(headers, "Authorization" => normalise_auth(selected_auth)::String)
-    end
-    append!(headers, normalise_extra_headers(extra_headers))
+    handle_priority!(headers, priority)
+    handle_title!(headers, title)
+    handle_tags!(headers, tags)
+    handle_click!(headers, click)
+    handle_attach!(headers, attach)
+    handle_actions!(headers, actions)
+    handle_email!(headers, email)
+    handle_markdown!(headers, markdown)
+    handle_delay!(headers, delay)
+    handle_auth!(headers, auth)
+    handle_extra_headers!(headers, extra_headers)
 
     req = (method = "POST", url = url, headers = headers, body = message)
 
