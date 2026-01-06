@@ -59,8 +59,13 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
   checks the `token`, `user`, and `password` preferences (or the environment
   variables `NTFY_TOKEN`, `NTFY_USER`, `NTFY_PASSWORD`) to build the
   `Authorization` header.
+- `nothrow`: When set to `true`, suppress errors raised while sending the notification and log a warning instead.
 
-Raises an error if the server does not return a 2xx response. Returns nothing on success.
+Raises an error if the server does not return a 2xx response (unless `nothrow=true`). Returns nothing on success.
+
+### `ntfy(topic, message_template; kwargs...) do f end`
+
+Execute `f()` and send a notification based on `message_template`, formatting it with the return value of `f` on success or the thrown exception on failure. Any keyword arguments (including `nothrow`) are forwarded to the inner `ntfy` call. This method returns the result of `f()` so callers can continue using the computed value even when notifications are best-effort.
 
 ### `ntfy(topic, message::Markdown.MD; markdown=true, kwargs...)`
 
