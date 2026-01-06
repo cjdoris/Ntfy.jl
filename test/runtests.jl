@@ -334,9 +334,20 @@ end
     @test length(handler.requests) == 1
 
     handler = Ntfy.DummyRequestHandler(status = 500)
+    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "result \$(value)"; request_handler = handler) do
+        7
+    end
+    @test length(handler.requests) == 1
+
+    handler = Ntfy.DummyRequestHandler(status = 500)
     result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "result \$(value)"; request_handler = handler, nothrow = true) do
         123
     end
     @test result == 123
     @test length(handler.requests) == 1
+
+    handler = Ntfy.DummyRequestHandler()
+    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy(123, "bad topic"; request_handler = handler, nothrow = true)
+    @test result === nothing
+    @test isempty(handler.requests)
 end

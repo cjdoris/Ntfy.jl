@@ -6,3 +6,6 @@
 - Use ntfy's official `X-` prefixed headers (e.g., `X-Title`, `X-Priority`) when constructing requests.
 - Run tests with `julia --project=. -e 'using Pkg; Pkg.test()'.
 - Ensure any new functions have docstrings, including internal helpers.
+- After tests pass, rerun them with coverage enabled using `julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'`. When
+  editing code, add tests that aim for full coverage of the modified lines. If full coverage isn't practical, explain any
+  remaining uncovered lines and why in the final report.
