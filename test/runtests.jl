@@ -312,7 +312,7 @@ end
     result = Ntfy.ntfy("dummy-topic", "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)", request_handler=handler) do
         99
     end
-    @test result === nothing
+    @test result === 99
     @test handler.requests[1].body == "result 99 - SUCCESS"
     @test Dict(handler.requests[1].headers)["X-Title"] == "overall Success"
 
@@ -326,4 +326,17 @@ end
         :ok
     end
     @test Dict(handler.requests[end].headers)["X-Title"] == "unchanged"
+end
+
+@testset "nothrow" begin
+    handler = Ntfy.DummyRequestHandler(status = 500)
+    @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "boom"; request_handler = handler, nothrow = true)
+    @test length(handler.requests) == 1
+
+    handler = Ntfy.DummyRequestHandler(status = 500)
+    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "result \$(value)"; request_handler = handler, nothrow = true) do
+        123
+    end
+    @test result == 123
+    @test length(handler.requests) == 1
 end

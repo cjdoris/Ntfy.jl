@@ -238,43 +238,55 @@ handle_extra_headers!(headers, ::Any) = error("Unsupported extra_headers type")
 """
     ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
+        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing,
+        nothrow=false)
 
 Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
 settings correspond to the headers supported by ntfy.sh. Raises an error if the
-response status is not in the 2xx range.
+response status is not in the 2xx range unless `nothrow=true`, in which case the
+error is logged and suppressed.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
-        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing)
-    handler = request_handler === nothing ? RequestHandler() : request_handler
-    topic_name = normalise_topic(topic)::String
-    message = normalise_message(message)::String
-    base_url = normalise_base_url(base_url)::String
+        extra_headers=nothing, base_url=nothing, auth=nothing, request_handler=nothing,
+        nothrow=false)
+    try
+        handler = request_handler === nothing ? RequestHandler() : request_handler
+        topic_name = normalise_topic(topic)::String
+        message = normalise_message(message)::String
+        base_url = normalise_base_url(base_url)::String
 
-    url = build_url(base_url, topic_name)
-    headers = Pair{String,String}[]
+        url = build_url(base_url, topic_name)
+        headers = Pair{String,String}[]
 
-    handle_priority!(headers, priority)
-    handle_title!(headers, title)
-    handle_tags!(headers, tags)
-    handle_click!(headers, click)
-    handle_attach!(headers, attach)
-    handle_actions!(headers, actions)
-    handle_email!(headers, email)
-    handle_markdown!(headers, markdown)
-    handle_delay!(headers, delay)
-    handle_auth!(headers, auth)
-    handle_extra_headers!(headers, extra_headers)
+        handle_priority!(headers, priority)
+        handle_title!(headers, title)
+        handle_tags!(headers, tags)
+        handle_click!(headers, click)
+        handle_attach!(headers, attach)
+        handle_actions!(headers, actions)
+        handle_email!(headers, email)
+        handle_markdown!(headers, markdown)
+        handle_delay!(headers, delay)
+        handle_auth!(headers, auth)
+        handle_extra_headers!(headers, extra_headers)
 
-    req = (method = "POST", url = url, headers = headers, body = message)
+        req = (method = "POST", url = url, headers = headers, body = message)
 
-    status, response_message = request(handler, req)
+        status, response_message = request(handler, req)
 
-    if status < 200 || status >= 300
-        error("ntfy request failed with status $(status): $(response_message)")
+        if status < 200 || status >= 300
+            error("ntfy request failed with status $(status): $(response_message)")
+        end
+        return nothing
+    catch err
+        if nothrow
+            @warn "ntfy() failed" err
+            return nothing
+        else
+            rethrow()
+        end
     end
-    return nothing
 end
 
 function request(::RequestHandler, req)
@@ -300,7 +312,7 @@ function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)
     end
     message = format_message(message_template, value, false)
     ntfy(topic, message; title=format_title(value, false), kwargs...)
-    return nothing
+    return value
 end
 
 """
