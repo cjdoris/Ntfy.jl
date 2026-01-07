@@ -4,6 +4,7 @@ export ntfy
 
 using Base64
 using Downloads
+using Printf
 using Preferences
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
@@ -48,25 +49,84 @@ function getpref(pref, envvar)
     return env_value === nothing ? nothing : convert(String, env_value)
 end
 
-function format_message(template, value, is_error::Bool)
+"""
+    format_time_value(value)
+
+Format a numeric time value with at most three significant figures.
+"""
+function format_time_value(value)
+    return @sprintf("%.3g", float(value))
+end
+
+"""
+    format_elapsed_time(time_ns)
+
+Format an elapsed duration, provided in nanoseconds, into a human-readable
+string using the largest sensible unit.
+"""
+function format_elapsed_time(time_ns)
+    time_value = float(time_ns)
+    units = (
+        (86400e9, "d"),
+        (3600e9, "h"),
+        (60e9, "m"),
+        (1e9, "s"),
+        (1e6, "ms"),
+        (1e3, "μs"),
+        (1.0, "ns"),
+    )
+    for (unit_ns, suffix) in units
+        if time_value >= unit_ns
+            return "$(format_time_value(time_value / unit_ns)) $(suffix)"
+        end
+    end
+    return "0 ns"
+end
+
+"""
+    render_template(template, values)
+
+Replace `{{ name }}` placeholders in `template` with the provided `values`.
+"""
+function render_template(template, values::AbstractDict{<:AbstractString, <:AbstractString})
+    result = template
+    for (key, value) in values
+        pattern = Regex("\\{\\{\\s*" * key * "\\s*\\}\\}")
+        result = replace(result, pattern => value)
+    end
+    return result
+end
+
+function format_message(template, info)
     template_str = normalise_message(template)
-    status_lower = is_error ? "error" : "success"
-    status_title = is_error ? "Error" : "Success"
-    status_upper = is_error ? "ERROR" : "SUCCESS"
+    status_lower = info.is_error ? "error" : "success"
+    status_title = info.is_error ? "Error" : "Success"
+    status_upper = info.is_error ? "ERROR" : "SUCCESS"
     io = IOBuffer()
-    if is_error
-        showerror(IOContext(io, :limit => true), value)
+    if info.is_error
+        showerror(IOContext(io, :limit => true), info.value)
     else
-        show(IOContext(io, :limit => true), value)
+        show(IOContext(io, :limit => true), info.value)
     end
     value_str = String(take!(io))
 
-    return replace(template_str,
-        "\$(value)" => value_str,
-        "\$(success)" => status_lower,
-        "\$(SUCCESS)" => status_upper,
-        "\$(Success)" => status_title,
+    time_ns = float(info.time_ns)
+    replacements = Dict(
+        "value" => value_str,
+        "success" => status_lower,
+        "SUCCESS" => status_upper,
+        "Success" => status_title,
+        "time_ns" => format_time_value(time_ns),
+        "time_us" => format_time_value(time_ns / 1e3),
+        "time_ms" => format_time_value(time_ns / 1e6),
+        "time_s" => format_time_value(time_ns / 1e9),
+        "time_m" => format_time_value(time_ns / 6e10),
+        "time_h" => format_time_value(time_ns / 3.6e12),
+        "time_d" => format_time_value(time_ns / 8.64e13),
+        "time" => format_elapsed_time(time_ns),
     )
+
+    return render_template(template_str, replacements)
 end
 
 """
@@ -318,8 +378,10 @@ end
 Invoke `f` and publish its output (or error) to `topic`. Success notifications use the
 `message` and related arguments, while error notifications use the corresponding
 `error_` variants. String message and title values are treated as templates supporting
-`\$(value)` and `\$(success)` placeholders unless provided via functions, in which case
-the return values are passed through without templating.
+`{{ value }}`, `{{ success }}`, `{{ time }}`, and `{{ time_ns }}`/`{{ time_s }}` style
+placeholders unless provided via functions, in which case the return values are
+passed through without templating. Function-valued arguments receive an `info`
+named tuple with `value`, `is_error`, and `time_ns` fields.
 
 # Keyword Arguments
 - `error_message`
@@ -367,14 +429,14 @@ function ntfy(f::Function, topic, message_template;
         nothrow=false,
         kwargs...)
     """
-        inner_ntfy(topic, message_template, value; title=nothing, tags=nothing, priority=nothing,
+        inner_ntfy(topic, message_template, info; title=nothing, tags=nothing, priority=nothing,
             click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
             markdown=nothing)
 
     Resolve function arguments, format templated message/title values, and dispatch a
-    notification for the given `value`.
+    notification for the given `info`.
     """
-    function inner_ntfy(topic, message_template, value;
+    function inner_ntfy(topic, message_template, info;
             title=nothing,
             tags=nothing,
             priority=nothing,
@@ -385,18 +447,18 @@ function ntfy(f::Function, topic, message_template;
             delay=nothing,
             markdown=nothing)
         function resolve_arg(arg)
-            return arg isa Function ? arg(value) : arg
+            return arg isa Function ? arg(info) : arg
         end
         function resolve_template(template, is_error)
             if template isa Function
-                return template(value)
+                return template(info)
             elseif template isa AbstractString
-                return format_message(template, value, is_error)
+                return format_message(template, info)
             end
             return template
         end
         try
-            is_error = value isa Exception
+            is_error = info.is_error
             message = resolve_template(message_template, is_error)
             resolved_title = resolve_template(title, is_error)
             resolved_tags = resolve_arg(tags)
@@ -430,10 +492,13 @@ function ntfy(f::Function, topic, message_template;
         end
     end
 
+    start_time = Base.time_ns()
     value = try
         f()
     catch err
-        inner_ntfy(topic, error_message, err;
+        finish_time = Base.time_ns()
+        info = (value=err, is_error=true, time_ns=finish_time - start_time)
+        inner_ntfy(topic, error_message, info;
             title=error_title,
             tags=error_tags,
             priority=error_priority,
@@ -445,7 +510,9 @@ function ntfy(f::Function, topic, message_template;
             markdown=error_markdown)
         rethrow()
     end
-    inner_ntfy(topic, message_template, value;
+    finish_time = Base.time_ns()
+    info = (value=value, is_error=false, time_ns=finish_time - start_time)
+    inner_ntfy(topic, message_template, info;
         title=title,
         tags=tags,
         priority=priority,
