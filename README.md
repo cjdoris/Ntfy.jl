@@ -86,3 +86,8 @@ packages are loaded.
   title. Available fields include `value`, `value_md`, `success`, `SUCCESS`,
   `Success`, `is_error`, and the time fields `time`, `time_ns`, `time_us`,
   `time_ms`, `time_s`, `time_m`, `time_h`, and `time_d`.
+- **OteraEngine**: The OteraEngine.jl extension lets the `ntfy(topic, template) do f end`
+  form accept `OteraEngine.Template` values for the message or title. The template
+  `init` view includes `value`, `value_md`, `success`, `SUCCESS`, `Success`,
+  `is_error`, and the time fields `time`, `time_ns`, `time_us`, `time_ms`, `time_s`,
+  `time_m`, `time_h`, and `time_d`.
