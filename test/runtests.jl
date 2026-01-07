@@ -3,6 +3,7 @@ using Dates
 using Downloads
 using Markdown
 using Mustache
+using OteraEngine
 using Preferences
 using Base64
 using Ntfy
@@ -341,6 +342,10 @@ end
           "elapsed 1"
     @test Ntfy.render_template(mt"elapsed {{time}}", (value=0, is_error=false, time_ns=0)) ==
           "elapsed 0 ns"
+
+    otera_template = OteraEngine.Template("elapsed {{ time }}"; path=false)
+    @test Ntfy.render_template(otera_template, (value=0, is_error=false, time_ns=0)) ==
+          "elapsed 0 ns"
 end
 
 @testset "do-notation" begin
@@ -374,6 +379,31 @@ end
     @test Dict(handler.requests[end].headers)["X-Title"] == "error Error"
     @test Dict(handler.requests[end].headers)["X-Priority"] == "5"
     @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
+
+    handler = Ntfy.DummyRequestHandler()
+    message_template = OteraEngine.Template("message {{ value }} {{ success }}"; path=false)
+    title_template = OteraEngine.Template("title {{ Success }}"; path=false)
+    result = Ntfy.ntfy("dummy-topic", message_template; title=title_template, request_handler=handler) do
+        42
+    end
+    @test result == 42
+    @test handler.requests[end].body == "message 42 success"
+    @test Dict(handler.requests[end].headers)["X-Title"] == "title Success"
+
+    handler = Ntfy.DummyRequestHandler()
+    error_message_template = OteraEngine.Template("error {{ value }}"; path=false)
+    error_title_template = OteraEngine.Template("title {{ SUCCESS }}"; path=false)
+    @test_throws ErrorException Ntfy.ntfy(
+        "dummy-topic",
+        "unused";
+        error_message=error_message_template,
+        error_title=error_title_template,
+        request_handler=handler,
+    ) do
+        error("boom")
+    end
+    @test occursin("boom", handler.requests[end].body)
+    @test Dict(handler.requests[end].headers)["X-Title"] == "title ERROR"
 
     Ntfy.ntfy("dummy-topic", "no title formatting"; title = :unchanged, request_handler=handler) do
         :ok
