@@ -13,3 +13,4 @@
   success/error notifications without templating the function return values.
 - Mustache.jl templates are supported only via the Mustache extension, which owns the `template_view` helper and includes
   the `is_error` field.
+- Time formatting helpers for templates live in extensions (MustacheExt and MarkdownExt), not in the core module.
