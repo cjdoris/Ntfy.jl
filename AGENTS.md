@@ -11,5 +11,6 @@
   remaining uncovered lines and why in the final report.
 - The `ntfy(f::Function, ...)` helper supports `error_` keyword variants and function-valued notification arguments to tailor
   success/error notifications without templating the function return values.
-- Do-notation templates use `{{ name }}` placeholders (including `{{ value }}`, `{{ success }}`, and time fields), and
-  function-valued arguments receive an `info` named tuple with `value`, `is_error`, and `time_ns`.
+- Mustache.jl templates are supported only via the Mustache extension, which owns the `template_view` helper and includes
+  the `is_error` field.
+- Time formatting helpers for templates live in MustacheExt, not in the core module.

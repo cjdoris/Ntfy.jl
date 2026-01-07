@@ -63,14 +63,26 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 
 Raises an error if the server does not return a 2xx response (unless `nothrow=true`). Returns nothing on success.
 
-### `ntfy(topic, message_template; kwargs...) do f end`
+### `ntfy(topic, message; kwargs...) do f end`
 
-Execute `f()` and send a notification based on `message_template`, formatting it with the return value of `f` on success or the thrown exception on failure. Any keyword arguments (including `nothrow`) are forwarded to the inner `ntfy` call. This method returns the result of `f()` so callers can continue using the computed value even when notifications are best-effort.
+Execute `f()` and send a notification based on `message` on success or
+`error_message` on failure. Any keyword arguments (including `nothrow`) are
+forwarded to the inner `ntfy` call. This method returns the result of `f()` so
+callers can continue using the computed value even when notifications are
+best-effort.
 
-### `ntfy(topic, message::Markdown.MD; markdown=true, kwargs...)`
+## Extensions
 
-When you pass a `Markdown.MD` value, the Markdown package extension converts the
-markdown document to a string and forwards it to `ntfy`. The `markdown`
-keyword defaults to `true` to enable rendering in supported ntfy clients, and
-all other keyword arguments are passed through unchanged.
+Ntfy.jl exposes a few opt-in extensions that activate when the corresponding
+packages are loaded.
 
+- **Markdown**: Passing a `Markdown.MD` value converts the document to a string
+  and forwards it to `ntfy`. The `markdown` keyword defaults to `true` so
+  supported clients render the result.
+- **Dates**: `delay` accepts `Date`, `DateTime`, and `Period` values from Dates
+  and converts them into ntfy-compatible delay strings.
+- **Mustache**: The Mustache.jl extension lets the `ntfy(topic, template) do f end`
+  form accept `Mustache.MustacheTokens` (e.g. `mt"..."`) for the message or
+  title. Available fields include `value`, `value_md`, `success`, `SUCCESS`,
+  `Success`, `is_error`, and the time fields `time`, `time_ns`, `time_us`,
+  `time_ms`, `time_s`, `time_m`, `time_h`, and `time_d`.
