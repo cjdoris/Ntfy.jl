@@ -298,18 +298,30 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
 end
 
 @testset "format_message" begin
-    @test Ntfy.format_message("value: \$(value)", 42, false) == "value: 42"
+    info = (value=42, is_error=false, time_ns=1_234_000_000)
+    @test Ntfy.format_message("value: {{ value }}", info) == "value: 42"
+    @test Ntfy.format_message("status: {{ success }} / {{ SUCCESS }} / {{ Success }}", info) ==
+          "status: success / SUCCESS / Success"
+    @test Ntfy.format_message("elapsed: {{ time_s }} {{ time_s }}", info) == "elapsed: 1.23 1.23"
+    @test Ntfy.format_message("elapsed: {{ time }}", info) == "elapsed: 1.23 s"
+    @test Ntfy.format_message("elapsed: {{ time_ns }}", (value=0, is_error=false, time_ns=123)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_us }}", (value=0, is_error=false, time_ns=123_000)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_ms }}", (value=0, is_error=false, time_ns=123_000_000)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_m }}", (value=0, is_error=false, time_ns=60_000_000_000)) == "elapsed: 1"
+    @test Ntfy.format_message("elapsed: {{ time_h }}", (value=0, is_error=false, time_ns=3_600_000_000_000)) == "elapsed: 1"
+    @test Ntfy.format_message("elapsed: {{ time_d }}", (value=0, is_error=false, time_ns=86_400_000_000_000)) == "elapsed: 1"
+    zero_info = (value=0, is_error=false, time_ns=0)
+    @test Ntfy.format_message("elapsed: {{ time }}", zero_info) == "elapsed: 0 ns"
 
     err = ErrorException("boom")
-    @test Ntfy.format_message("status: \$(success) / \$(SUCCESS) / \$(Success)", 1, false) ==
-          "status: success / SUCCESS / Success"
-    @test occursin("boom", Ntfy.format_message("error: \$(value)", err, true))
+    err_info = (value=err, is_error=true, time_ns=1200)
+    @test occursin("boom", Ntfy.format_message("error: {{ value }}", err_info))
 end
 
 @testset "do-notation" begin
     handler = Ntfy.DummyRequestHandler()
 
-    result = Ntfy.ntfy("dummy-topic", "result \$(value) - \$(SUCCESS)"; title = "overall \$(Success)", request_handler=handler) do
+    result = Ntfy.ntfy("dummy-topic", "result {{ value }} - {{ SUCCESS }}"; title = "overall {{ Success }}", request_handler=handler) do
         99
     end
     @test result === 99
@@ -318,10 +330,10 @@ end
 
     @test_throws ErrorException Ntfy.ntfy(
         "dummy-topic",
-        "failing \$(success): \$(value)";
-        error_message = "failed \$(SUCCESS): \$(value)",
-        title = "failing \$(SUCCESS)",
-        error_title = "error \$(Success)",
+        "failing {{ success }}: {{ value }}";
+        error_message = "failed {{ SUCCESS }}: {{ value }}",
+        title = "failing {{ SUCCESS }}",
+        error_title = "error {{ Success }}",
         error_priority = 5,
         error_tags = ["fire"],
         request_handler=handler,
@@ -341,25 +353,25 @@ end
     handler = Ntfy.DummyRequestHandler()
     result = Ntfy.ntfy(
         "dummy-topic",
-        value -> "literal \$(value)";
-        title = value -> "title \$(Success)",
-        tags = value -> ["tag-$(value)"],
-        priority = value -> 3,
-        click = value -> "https://example.com/$(value)",
-        attach = value -> "https://example.com/$(value).txt",
-        actions = value -> ["view, $(value)"],
-        email = value -> "user$(value)@example.com",
-        delay = value -> "1h",
-        markdown = value -> true,
+        info -> "literal {{ value }}";
+        title = info -> "title {{ Success }}",
+        tags = info -> ["tag-$(info.value)"],
+        priority = info -> 3,
+        click = info -> "https://example.com/$(info.value)",
+        attach = info -> "https://example.com/$(info.value).txt",
+        actions = info -> ["view, $(info.value)"],
+        email = info -> "user$(info.value)@example.com",
+        delay = info -> "1h",
+        markdown = info -> true,
         request_handler = handler,
     ) do
         7
     end
     @test result == 7
     req = only(handler.requests)
-    @test req.body == "literal \$(value)"
+    @test req.body == "literal {{ value }}"
     headers = Dict(req.headers)
-    @test headers["X-Title"] == "title \$(Success)"
+    @test headers["X-Title"] == "title {{ Success }}"
     @test headers["X-Tags"] == "tag-7"
     @test headers["X-Priority"] == "3"
     @test headers["X-Click"] == "https://example.com/7"
@@ -376,13 +388,13 @@ end
     @test length(handler.requests) == 1
 
     handler = Ntfy.DummyRequestHandler(status = 500)
-    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "result \$(value)"; request_handler = handler) do
+    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "result {{ value }}"; request_handler = handler) do
         7
     end
     @test length(handler.requests) == 1
 
     handler = Ntfy.DummyRequestHandler(status = 500)
-    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "result \$(value)"; request_handler = handler, nothrow = true) do
+    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "result {{ value }}"; request_handler = handler, nothrow = true) do
         123
     end
     @test result == 123
