@@ -302,8 +302,14 @@ end
     @test Ntfy.format_message("value: {{ value }}", info) == "value: 42"
     @test Ntfy.format_message("status: {{ success }} / {{ SUCCESS }} / {{ Success }}", info) ==
           "status: success / SUCCESS / Success"
-    @test Ntfy.format_message("elapsed: {{ time_s }}", info) == "elapsed: 1.23"
+    @test Ntfy.format_message("elapsed: {{ time_s }} {{ time_s }}", info) == "elapsed: 1.23 1.23"
     @test Ntfy.format_message("elapsed: {{ time }}", info) == "elapsed: 1.23 s"
+    @test Ntfy.format_message("elapsed: {{ time_ns }}", (value=0, is_error=false, time_ns=123)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_us }}", (value=0, is_error=false, time_ns=123_000)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_ms }}", (value=0, is_error=false, time_ns=123_000_000)) == "elapsed: 123"
+    @test Ntfy.format_message("elapsed: {{ time_m }}", (value=0, is_error=false, time_ns=60_000_000_000)) == "elapsed: 1"
+    @test Ntfy.format_message("elapsed: {{ time_h }}", (value=0, is_error=false, time_ns=3_600_000_000_000)) == "elapsed: 1"
+    @test Ntfy.format_message("elapsed: {{ time_d }}", (value=0, is_error=false, time_ns=86_400_000_000_000)) == "elapsed: 1"
     zero_info = (value=0, is_error=false, time_ns=0)
     @test Ntfy.format_message("elapsed: {{ time }}", zero_info) == "elapsed: 0 ns"
 

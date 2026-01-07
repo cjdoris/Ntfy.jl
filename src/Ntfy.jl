@@ -84,49 +84,64 @@ function format_elapsed_time(time_ns)
 end
 
 """
-    render_template(template, values)
+    render_template(template, info)
 
-Replace `{{ name }}` placeholders in `template` with the provided `values`.
+Replace `{{ name }}` placeholders in `template` using the provided `info`.
 """
-function render_template(template, values::AbstractDict{<:AbstractString, <:AbstractString})
-    result = template
-    for (key, value) in values
-        pattern = Regex("\\{\\{\\s*" * key * "\\s*\\}\\}")
-        result = replace(result, pattern => value)
+function render_template(template, info)
+    cache = Dict{String,String}()
+    function resolve_key(key)
+        cached = get(cache, key, nothing)
+        if cached !== nothing
+            return cached
+        end
+        value = if key == "value"
+            io = IOBuffer()
+            if info.is_error
+                showerror(IOContext(io, :limit => true), info.value)
+            else
+                show(IOContext(io, :limit => true), info.value)
+            end
+            String(take!(io))
+        elseif key == "success"
+            info.is_error ? "error" : "success"
+        elseif key == "SUCCESS"
+            info.is_error ? "ERROR" : "SUCCESS"
+        elseif key == "Success"
+            info.is_error ? "Error" : "Success"
+        elseif key == "time_ns"
+            format_time_value(float(info.time_ns))
+        elseif key == "time_us"
+            format_time_value(float(info.time_ns) / 1e3)
+        elseif key == "time_ms"
+            format_time_value(float(info.time_ns) / 1e6)
+        elseif key == "time_s"
+            format_time_value(float(info.time_ns) / 1e9)
+        elseif key == "time_m"
+            format_time_value(float(info.time_ns) / 6e10)
+        elseif key == "time_h"
+            format_time_value(float(info.time_ns) / 3.6e12)
+        elseif key == "time_d"
+            format_time_value(float(info.time_ns) / 8.64e13)
+        elseif key == "time"
+            format_elapsed_time(float(info.time_ns))
+        else
+            return nothing
+        end
+        cache[key] = value
+        return value
     end
-    return result
+    return replace(template, r"\{\{\s*[A-Za-z_]+\s*\}\}" => match_text -> begin
+        key_match = match(r"^\{\{\s*([A-Za-z_]+)\s*\}\}$", match_text)
+        key = key_match === nothing ? nothing : key_match.captures[1]
+        value = key === nothing ? nothing : resolve_key(key)
+        return value === nothing ? match_text : value
+    end)
 end
 
 function format_message(template, info)
     template_str = normalise_message(template)
-    status_lower = info.is_error ? "error" : "success"
-    status_title = info.is_error ? "Error" : "Success"
-    status_upper = info.is_error ? "ERROR" : "SUCCESS"
-    io = IOBuffer()
-    if info.is_error
-        showerror(IOContext(io, :limit => true), info.value)
-    else
-        show(IOContext(io, :limit => true), info.value)
-    end
-    value_str = String(take!(io))
-
-    time_ns = float(info.time_ns)
-    replacements = Dict(
-        "value" => value_str,
-        "success" => status_lower,
-        "SUCCESS" => status_upper,
-        "Success" => status_title,
-        "time_ns" => format_time_value(time_ns),
-        "time_us" => format_time_value(time_ns / 1e3),
-        "time_ms" => format_time_value(time_ns / 1e6),
-        "time_s" => format_time_value(time_ns / 1e9),
-        "time_m" => format_time_value(time_ns / 6e10),
-        "time_h" => format_time_value(time_ns / 3.6e12),
-        "time_d" => format_time_value(time_ns / 8.64e13),
-        "time" => format_elapsed_time(time_ns),
-    )
-
-    return render_template(template_str, replacements)
+    return render_template(template_str, info)
 end
 
 """
