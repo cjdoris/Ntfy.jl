@@ -89,12 +89,7 @@ end
 Replace `{{ name }}` placeholders in `template` using the provided `info`.
 """
 function render_template(template, info)
-    cache = Dict{String,String}()
     function resolve_key(key)
-        cached = get(cache, key, nothing)
-        if cached !== nothing
-            return cached
-        end
         value = if key == "value"
             io = IOBuffer()
             if info.is_error
@@ -128,7 +123,6 @@ function render_template(template, info)
         else
             return nothing
         end
-        cache[key] = value
         return value
     end
     return replace(template, r"\{\{\s*[A-Za-z_]+\s*\}\}" => match_text -> begin
