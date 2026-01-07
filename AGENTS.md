@@ -11,5 +11,5 @@
   remaining uncovered lines and why in the final report.
 - The `ntfy(f::Function, ...)` helper supports `error_` keyword variants and function-valued notification arguments to tailor
   success/error notifications without templating the function return values.
-- Mustache.jl templates are supported only via the Mustache extension using `render_template` and `template_view`, including
+- Mustache.jl templates are supported only via the Mustache extension, which owns the `template_view` helper and includes
   the `is_error` field.
