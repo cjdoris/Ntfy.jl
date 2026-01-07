@@ -89,15 +89,37 @@ end
 Replace `{{ name }}` placeholders in `template` using the provided `info`.
 """
 function render_template(template, info)
+    """
+        render_value(info, mime)
+
+    Render `info.value` using the provided MIME type.
+    """
+    function render_value(info, mime)
+        io = IOBuffer()
+        show(IOContext(io, :limit => true), mime, info.value)
+        return String(take!(io))
+    end
+
+    """
+        render_markdown_value(info)
+
+    Render `info.value` as markdown, falling back to plain text wrapped in
+    triple backticks if markdown rendering fails.
+    """
+    function render_markdown_value(info)
+        try
+            return render_value(info, MIME"text/markdown"())
+        catch err
+            plain_value = render_value(info, MIME"text/plain"())
+            return "```\n$(plain_value)\n```"
+        end
+    end
+
     function resolve_key(key)
         value = if key == "value"
-            io = IOBuffer()
-            if info.is_error
-                showerror(IOContext(io, :limit => true), info.value)
-            else
-                show(IOContext(io, :limit => true), info.value)
-            end
-            String(take!(io))
+            render_value(info, MIME"text/plain"())
+        elseif key == "value_md"
+            render_markdown_value(info)
         elseif key == "success"
             info.is_error ? "error" : "success"
         elseif key == "SUCCESS"
@@ -387,7 +409,8 @@ end
 Invoke `f` and publish its output (or error) to `topic`. Success notifications use the
 `message` and related arguments, while error notifications use the corresponding
 `error_` variants. String message and title values are treated as templates supporting
-`{{ value }}`, `{{ success }}`, `{{ time }}`, and `{{ time_ns }}`/`{{ time_s }}` style
+`{{ value }}`, `{{ value_md }}`, `{{ success }}`, `{{ time }}`, and
+`{{ time_ns }}`/`{{ time_s }}` style
 placeholders unless provided via functions, in which case the return values are
 passed through without templating. Function-valued arguments receive an `info`
 named tuple with `value`, `is_error`, and `time_ns` fields.
