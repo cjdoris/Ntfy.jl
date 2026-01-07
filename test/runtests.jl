@@ -316,16 +316,58 @@ end
     @test handler.requests[1].body == "result 99 - SUCCESS"
     @test Dict(handler.requests[1].headers)["X-Title"] == "overall Success"
 
-    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "failing \$(success): \$(value)"; title = "failing \$(SUCCESS)", request_handler=handler) do
+    @test_throws ErrorException Ntfy.ntfy(
+        "dummy-topic",
+        "failing \$(success): \$(value)";
+        error_message = "failed \$(SUCCESS): \$(value)",
+        title = "failing \$(SUCCESS)",
+        error_title = "error \$(Success)",
+        error_priority = 5,
+        error_tags = ["fire"],
+        request_handler=handler,
+    ) do
         error("kaboom")
     end
     @test endswith(handler.requests[end].body, "kaboom")
-    @test Dict(handler.requests[end].headers)["X-Title"] == "failing ERROR"
+    @test Dict(handler.requests[end].headers)["X-Title"] == "error Error"
+    @test Dict(handler.requests[end].headers)["X-Priority"] == "5"
+    @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
 
     Ntfy.ntfy("dummy-topic", "no title formatting"; title = :unchanged, request_handler=handler) do
         :ok
     end
     @test Dict(handler.requests[end].headers)["X-Title"] == "unchanged"
+
+    handler = Ntfy.DummyRequestHandler()
+    result = Ntfy.ntfy(
+        "dummy-topic",
+        value -> "literal \$(value)";
+        title = value -> "title \$(Success)",
+        tags = value -> ["tag-$(value)"],
+        priority = value -> 3,
+        click = value -> "https://example.com/$(value)",
+        attach = value -> "https://example.com/$(value).txt",
+        actions = value -> ["view, $(value)"],
+        email = value -> "user$(value)@example.com",
+        delay = value -> "1h",
+        markdown = value -> true,
+        request_handler = handler,
+    ) do
+        7
+    end
+    @test result == 7
+    req = only(handler.requests)
+    @test req.body == "literal \$(value)"
+    headers = Dict(req.headers)
+    @test headers["X-Title"] == "title \$(Success)"
+    @test headers["X-Tags"] == "tag-7"
+    @test headers["X-Priority"] == "3"
+    @test headers["X-Click"] == "https://example.com/7"
+    @test headers["X-Attach"] == "https://example.com/7.txt"
+    @test headers["X-Actions"] == "view, 7"
+    @test headers["X-Email"] == "user7@example.com"
+    @test headers["X-Delay"] == "1h"
+    @test headers["X-Markdown"] == "yes"
 end
 
 @testset "nothrow" begin
@@ -349,5 +391,12 @@ end
     handler = Ntfy.DummyRequestHandler()
     result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy(123, "bad topic"; request_handler = handler, nothrow = true)
     @test result === nothing
+    @test isempty(handler.requests)
+
+    handler = Ntfy.DummyRequestHandler()
+    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", 123; request_handler = handler, nothrow = true) do
+        42
+    end
+    @test result == 42
     @test isempty(handler.requests)
 end

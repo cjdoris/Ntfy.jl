@@ -299,19 +299,130 @@ function request(handler::DummyRequestHandler, req)
     return handler.status, handler.body
 end
 
-function ntfy(f::Function, topic, message_template; title=nothing, kwargs...)
-    function format_title(value, is_error)
-        return title isa AbstractString ? format_message(title, value, is_error) : title
+"""
+    ntfy(f::Function, topic, message; error_message=message, title=nothing, error_title=title,
+        tags=nothing, error_tags=tags, priority=nothing, error_priority=priority, click=nothing,
+        error_click=click, attach=nothing, error_attach=attach, actions=nothing,
+        error_actions=actions, email=nothing, error_email=email, delay=nothing,
+        error_delay=delay, markdown=nothing, error_markdown=markdown, nothrow=false, kwargs...)
+
+Invoke `f` and publish its output (or error) to `topic`. Success notifications use the
+`message` and related arguments, while error notifications use the corresponding
+`error_` variants. String message and title values are treated as templates supporting
+`\$(value)` and `\$(success)` placeholders unless provided via functions, in which case
+the return values are passed through without templating.
+"""
+function ntfy(f::Function, topic, message_template;
+        error_message=message_template,
+        title=nothing,
+        error_title=title,
+        tags=nothing,
+        error_tags=tags,
+        priority=nothing,
+        error_priority=priority,
+        click=nothing,
+        error_click=click,
+        attach=nothing,
+        error_attach=attach,
+        actions=nothing,
+        error_actions=actions,
+        email=nothing,
+        error_email=email,
+        delay=nothing,
+        error_delay=delay,
+        markdown=nothing,
+        error_markdown=markdown,
+        nothrow=false,
+        kwargs...)
+    """
+        inner_ntfy(topic, message_template, value; title=nothing, tags=nothing, priority=nothing,
+            click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
+            markdown=nothing)
+
+    Resolve function arguments, format templated message/title values, and dispatch a
+    notification for the given `value`.
+    """
+    function inner_ntfy(topic, message_template, value;
+            title=nothing,
+            tags=nothing,
+            priority=nothing,
+            click=nothing,
+            attach=nothing,
+            actions=nothing,
+            email=nothing,
+            delay=nothing,
+            markdown=nothing)
+        function resolve_arg(arg)
+            return arg isa Function ? arg(value) : arg
+        end
+        function resolve_template(template, is_error)
+            if template isa Function
+                return template(value)
+            elseif template isa AbstractString
+                return format_message(template, value, is_error)
+            end
+            return template
+        end
+        try
+            is_error = value isa Exception
+            message = resolve_template(message_template, is_error)
+            resolved_title = resolve_template(title, is_error)
+            resolved_tags = resolve_arg(tags)
+            resolved_priority = resolve_arg(priority)
+            resolved_click = resolve_arg(click)
+            resolved_attach = resolve_arg(attach)
+            resolved_actions = resolve_arg(actions)
+            resolved_email = resolve_arg(email)
+            resolved_delay = resolve_arg(delay)
+            resolved_markdown = resolve_arg(markdown)
+
+            ntfy(topic, message;
+                title=resolved_title,
+                tags=resolved_tags,
+                priority=resolved_priority,
+                click=resolved_click,
+                attach=resolved_attach,
+                actions=resolved_actions,
+                email=resolved_email,
+                delay=resolved_delay,
+                markdown=resolved_markdown,
+                kwargs...)
+            return nothing
+        catch err
+            if nothrow
+                @warn "ntfy() failed" err
+                return nothing
+            else
+                rethrow()
+            end
+        end
     end
+
     value = try
         f()
     catch err
-        message = format_message(message_template, err, true)
-        ntfy(topic, message; title=format_title(err, true), kwargs...)
+        inner_ntfy(topic, error_message, err;
+            title=error_title,
+            tags=error_tags,
+            priority=error_priority,
+            click=error_click,
+            attach=error_attach,
+            actions=error_actions,
+            email=error_email,
+            delay=error_delay,
+            markdown=error_markdown)
         rethrow()
     end
-    message = format_message(message_template, value, false)
-    ntfy(topic, message; title=format_title(value, false), kwargs...)
+    inner_ntfy(topic, message_template, value;
+        title=title,
+        tags=tags,
+        priority=priority,
+        click=click,
+        attach=attach,
+        actions=actions,
+        email=email,
+        delay=delay,
+        markdown=markdown)
     return value
 end
 
