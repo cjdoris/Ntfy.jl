@@ -357,6 +357,10 @@ end
     otera_template = OteraEngine.Template("elapsed {{ time }}"; path=false)
     @test Ntfy.render_template(otera_template, (value=0, is_error=false, time_ns=0)) ==
           "elapsed 0 ns"
+
+    mustache_ext = Base.get_extension(Ntfy, :MustacheExt)
+    @test mustache_ext !== nothing
+    @test_throws ErrorException mustache_ext.template_value(:unknown_key, (value=0, is_error=false, time_ns=0))
 end
 
 @testset "do-notation" begin
