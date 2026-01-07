@@ -2,6 +2,7 @@ using Test
 using Dates
 using Downloads
 using Markdown
+using Mustache
 using Preferences
 using Base64
 using Ntfy
@@ -297,7 +298,7 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
     end
 end
 
-@testset "format_message" begin
+@testset "template view" begin
     struct MarkdownValue
         text::String
     end
@@ -310,34 +311,47 @@ end
     Base.show(io::IO, ::MIME"text/plain", value::BrokenMarkdownValue) = print(io, value.text)
     Base.show(::IO, ::MIME"text/markdown", ::BrokenMarkdownValue) = error("no markdown support")
 
-    info = (value=42, is_error=false, time_ns=1_234_000_000)
-    @test Ntfy.format_message("value: {{ value }}", info) == "value: 42"
-    md_info = (value=MarkdownValue("bold"), is_error=false, time_ns=0)
-    @test Ntfy.format_message("value: {{ value_md }}", md_info) == "value: **bold**"
+    info = (value=MarkdownValue("bold"), is_error=false, time_ns=1_234_000_000)
+    template = mt"plain {{value}} md {{value_md}} {{success}} {{SUCCESS}} {{Success}} {{time_s}} {{time}}"
+    @test Ntfy.render_template(template, info) ==
+          "plain bold md **bold** success SUCCESS Success 1.23 1.23 s"
+
     fallback_info = (value=BrokenMarkdownValue("plain"), is_error=false, time_ns=0)
-    @test Ntfy.format_message("value: {{ value_md }}", fallback_info) == "value: ```\nplain\n```"
-    @test Ntfy.format_message("status: {{ success }} / {{ SUCCESS }} / {{ Success }}", info) ==
-          "status: success / SUCCESS / Success"
-    @test Ntfy.format_message("elapsed: {{ time_s }} {{ time_s }}", info) == "elapsed: 1.23 1.23"
-    @test Ntfy.format_message("elapsed: {{ time }}", info) == "elapsed: 1.23 s"
-    @test Ntfy.format_message("elapsed: {{ time_ns }}", (value=0, is_error=false, time_ns=123)) == "elapsed: 123"
-    @test Ntfy.format_message("elapsed: {{ time_us }}", (value=0, is_error=false, time_ns=123_000)) == "elapsed: 123"
-    @test Ntfy.format_message("elapsed: {{ time_ms }}", (value=0, is_error=false, time_ns=123_000_000)) == "elapsed: 123"
-    @test Ntfy.format_message("elapsed: {{ time_m }}", (value=0, is_error=false, time_ns=60_000_000_000)) == "elapsed: 1"
-    @test Ntfy.format_message("elapsed: {{ time_h }}", (value=0, is_error=false, time_ns=3_600_000_000_000)) == "elapsed: 1"
-    @test Ntfy.format_message("elapsed: {{ time_d }}", (value=0, is_error=false, time_ns=86_400_000_000_000)) == "elapsed: 1"
-    zero_info = (value=0, is_error=false, time_ns=0)
-    @test Ntfy.format_message("elapsed: {{ time }}", zero_info) == "elapsed: 0 ns"
+    fallback_template = mt"md {{value_md}}"
+    @test Ntfy.render_template(fallback_template, fallback_info) == "md ```\nplain\n```"
 
     err = ErrorException("boom")
     err_info = (value=err, is_error=true, time_ns=1200)
-    @test occursin("boom", Ntfy.format_message("error: {{ value }}", err_info))
+    err_template = mt"{{#is_error}}error{{/is_error}} {{value}}"
+    @test occursin("boom", Ntfy.render_template(err_template, err_info))
+
+    @test Ntfy.render_template(mt"elapsed {{time_ns}}", (value=0, is_error=false, time_ns=123)) ==
+          "elapsed 123"
+    @test Ntfy.render_template(mt"elapsed {{time_us}}", (value=0, is_error=false, time_ns=123_000)) ==
+          "elapsed 123"
+    @test Ntfy.render_template(mt"elapsed {{time_ms}}", (value=0, is_error=false, time_ns=123_000_000)) ==
+          "elapsed 123"
+    @test Ntfy.render_template(mt"elapsed {{time_s}}", (value=0, is_error=false, time_ns=1_230_000_000)) ==
+          "elapsed 1.23"
+    @test Ntfy.render_template(mt"elapsed {{time_m}}", (value=0, is_error=false, time_ns=60_000_000_000)) ==
+          "elapsed 1"
+    @test Ntfy.render_template(mt"elapsed {{time_h}}", (value=0, is_error=false, time_ns=3_600_000_000_000)) ==
+          "elapsed 1"
+    @test Ntfy.render_template(mt"elapsed {{time_d}}", (value=0, is_error=false, time_ns=86_400_000_000_000)) ==
+          "elapsed 1"
+    @test Ntfy.render_template(mt"elapsed {{time}}", (value=0, is_error=false, time_ns=0)) ==
+          "elapsed 0 ns"
 end
 
 @testset "do-notation" begin
     handler = Ntfy.DummyRequestHandler()
 
-    result = Ntfy.ntfy("dummy-topic", "result {{ value }} - {{ SUCCESS }}"; title = "overall {{ Success }}", request_handler=handler) do
+    result = Ntfy.ntfy(
+        "dummy-topic",
+        mt"result {{value}} - {{SUCCESS}}";
+        title = mt"overall {{Success}}",
+        request_handler=handler,
+    ) do
         99
     end
     @test result === 99
@@ -346,10 +360,10 @@ end
 
     @test_throws ErrorException Ntfy.ntfy(
         "dummy-topic",
-        "failing {{ success }}: {{ value }}";
-        error_message = "failed {{ SUCCESS }}: {{ value }}",
-        title = "failing {{ SUCCESS }}",
-        error_title = "error {{ Success }}",
+        mt"{{^is_error}}ok{{/is_error}}{{#is_error}}failing{{/is_error}} {{value}}";
+        error_message = mt"failed {{SUCCESS}}: {{value}}",
+        title = mt"failing {{SUCCESS}}",
+        error_title = mt"error {{Success}}",
         error_priority = 5,
         error_tags = ["fire"],
         request_handler=handler,
@@ -365,6 +379,12 @@ end
         :ok
     end
     @test Dict(handler.requests[end].headers)["X-Title"] == "unchanged"
+
+    handler = Ntfy.DummyRequestHandler()
+    Ntfy.ntfy("dummy-topic", "literal {{value}}"; request_handler=handler) do
+        123
+    end
+    @test handler.requests[end].body == "literal {{value}}"
 
     handler = Ntfy.DummyRequestHandler()
     result = Ntfy.ntfy(

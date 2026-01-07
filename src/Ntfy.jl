@@ -84,81 +84,69 @@ function format_elapsed_time(time_ns)
 end
 
 """
+    render_value(info, mime)
+
+Render `info.value` using the provided MIME type.
+"""
+function render_value(info, mime)
+    io = IOBuffer()
+    show(IOContext(io, :limit => true), mime, info.value)
+    return String(take!(io))
+end
+
+"""
+    render_markdown_value(info)
+
+Render `info.value` as markdown, falling back to plain text wrapped in
+triple backticks if markdown rendering fails.
+"""
+function render_markdown_value(info)
+    try
+        return render_value(info, MIME"text/markdown"())
+    catch err
+        plain_value = render_value(info, MIME"text/plain"())
+        return "```\n$(plain_value)\n```"
+    end
+end
+
+"""
+    template_view(info)
+
+Return a template view containing the substitution values for Mustache templates.
+"""
+function template_view(info)
+    view = Dict{Any,Any}()
+    function add_key!(key::AbstractString, value)
+        view[key] = value
+        view[Symbol(key)] = value
+    end
+    add_key!("value", () -> render_value(info, MIME"text/plain"()))
+    add_key!("value_md", () -> render_markdown_value(info))
+    add_key!("success", () -> (info.is_error ? "error" : "success"))
+    add_key!("SUCCESS", () -> (info.is_error ? "ERROR" : "SUCCESS"))
+    add_key!("Success", () -> (info.is_error ? "Error" : "Success"))
+    add_key!("time_ns", () -> format_time_value(float(info.time_ns)))
+    add_key!("time_us", () -> format_time_value(float(info.time_ns) / 1e3))
+    add_key!("time_ms", () -> format_time_value(float(info.time_ns) / 1e6))
+    add_key!("time_s", () -> format_time_value(float(info.time_ns) / 1e9))
+    add_key!("time_m", () -> format_time_value(float(info.time_ns) / 6e10))
+    add_key!("time_h", () -> format_time_value(float(info.time_ns) / 3.6e12))
+    add_key!("time_d", () -> format_time_value(float(info.time_ns) / 8.64e13))
+    add_key!("time", () -> format_elapsed_time(float(info.time_ns)))
+    add_key!("is_error", info.is_error)
+    return view
+end
+
+"""
     render_template(template, info)
 
-Replace `{{ name }}` placeholders in `template` using the provided `info`.
+Return the rendered `template` for the provided `info`. By default strings are
+returned unchanged and function templates are called with `info`. Extensions can
+add additional `render_template` methods for richer template types.
 """
-function render_template(template, info)
-    """
-        render_value(info, mime)
-
-    Render `info.value` using the provided MIME type.
-    """
-    function render_value(info, mime)
-        io = IOBuffer()
-        show(IOContext(io, :limit => true), mime, info.value)
-        return String(take!(io))
-    end
-
-    """
-        render_markdown_value(info)
-
-    Render `info.value` as markdown, falling back to plain text wrapped in
-    triple backticks if markdown rendering fails.
-    """
-    function render_markdown_value(info)
-        try
-            return render_value(info, MIME"text/markdown"())
-        catch err
-            plain_value = render_value(info, MIME"text/plain"())
-            return "```\n$(plain_value)\n```"
-        end
-    end
-
-    function resolve_key(key)
-        value = if key == "value"
-            render_value(info, MIME"text/plain"())
-        elseif key == "value_md"
-            render_markdown_value(info)
-        elseif key == "success"
-            info.is_error ? "error" : "success"
-        elseif key == "SUCCESS"
-            info.is_error ? "ERROR" : "SUCCESS"
-        elseif key == "Success"
-            info.is_error ? "Error" : "Success"
-        elseif key == "time_ns"
-            format_time_value(float(info.time_ns))
-        elseif key == "time_us"
-            format_time_value(float(info.time_ns) / 1e3)
-        elseif key == "time_ms"
-            format_time_value(float(info.time_ns) / 1e6)
-        elseif key == "time_s"
-            format_time_value(float(info.time_ns) / 1e9)
-        elseif key == "time_m"
-            format_time_value(float(info.time_ns) / 6e10)
-        elseif key == "time_h"
-            format_time_value(float(info.time_ns) / 3.6e12)
-        elseif key == "time_d"
-            format_time_value(float(info.time_ns) / 8.64e13)
-        elseif key == "time"
-            format_elapsed_time(float(info.time_ns))
-        else
-            return nothing
-        end
-        return value
-    end
-    return replace(template, r"\{\{\s*[A-Za-z_]+\s*\}\}" => match_text -> begin
-        key_match = match(r"^\{\{\s*([A-Za-z_]+)\s*\}\}$", match_text)
-        key = key_match === nothing ? nothing : key_match.captures[1]
-        value = key === nothing ? nothing : resolve_key(key)
-        return value === nothing ? match_text : value
-    end)
-end
-
-function format_message(template, info)
-    template_str = normalise_message(template)
-    return render_template(template_str, info)
-end
+render_template(template::AbstractString, info) = template
+render_template(template::Function, info) = template(info)
+render_template(template, info) = template
 
 """
     handle_priority!(headers, priority)
@@ -408,12 +396,10 @@ end
 
 Invoke `f` and publish its output (or error) to `topic`. Success notifications use the
 `message` and related arguments, while error notifications use the corresponding
-`error_` variants. String message and title values are treated as templates supporting
-`{{ value }}`, `{{ value_md }}`, `{{ success }}`, `{{ time }}`, and
-`{{ time_ns }}`/`{{ time_s }}` style
-placeholders unless provided via functions, in which case the return values are
-passed through without templating. Function-valued arguments receive an `info`
-named tuple with `value`, `is_error`, and `time_ns` fields.
+`error_` variants. Function-valued arguments receive an `info` named tuple with
+`value`, `is_error`, and `time_ns` fields. Template-capable types (such as
+Mustache templates provided by the Mustache.jl extension) are rendered via
+`render_template`.
 
 # Keyword Arguments
 - `error_message`
@@ -465,7 +451,7 @@ function ntfy(f::Function, topic, message_template;
             click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
             markdown=nothing)
 
-    Resolve function arguments, format templated message/title values, and dispatch a
+    Resolve function arguments, render templated message/title values, and dispatch a
     notification for the given `info`.
     """
     function inner_ntfy(topic, message_template, info;
@@ -481,18 +467,10 @@ function ntfy(f::Function, topic, message_template;
         function resolve_arg(arg)
             return arg isa Function ? arg(info) : arg
         end
-        function resolve_template(template, is_error)
-            if template isa Function
-                return template(info)
-            elseif template isa AbstractString
-                return format_message(template, info)
-            end
-            return template
-        end
         try
             is_error = info.is_error
-            message = resolve_template(message_template, is_error)
-            resolved_title = resolve_template(title, is_error)
+            message = render_template(message_template, info)
+            resolved_title = render_template(title, info)
             resolved_tags = resolve_arg(tags)
             resolved_priority = resolve_arg(priority)
             resolved_click = resolve_arg(click)
