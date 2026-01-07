@@ -336,8 +336,8 @@ Mustache templates provided by the Mustache.jl extension) are rendered via
 - `nothrow`
 - `kwargs...`
 """
-function ntfy(f::Function, topic, message_template;
-        error_message=message_template,
+function ntfy(f::Function, topic, message;
+        error_message=message,
         title=nothing,
         error_title=title,
         tags=nothing,
@@ -359,14 +359,14 @@ function ntfy(f::Function, topic, message_template;
         nothrow=false,
         kwargs...)
     """
-        inner_ntfy(topic, message_template, info; title=nothing, tags=nothing, priority=nothing,
+        inner_ntfy(topic, message, info; title=nothing, tags=nothing, priority=nothing,
             click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
             markdown=nothing)
 
     Resolve function arguments, render templated message/title values, and dispatch a
     notification for the given `info`.
     """
-    function inner_ntfy(topic, message_template, info;
+    function inner_ntfy(topic, message, info;
             title=nothing,
             tags=nothing,
             priority=nothing,
@@ -381,7 +381,7 @@ function ntfy(f::Function, topic, message_template;
         end
         try
             is_error = info.is_error
-            message = render_template(message_template, info)
+            message = render_template(message, info)
             resolved_title = render_template(title, info)
             resolved_tags = resolve_arg(tags)
             resolved_priority = resolve_arg(priority)
@@ -434,7 +434,7 @@ function ntfy(f::Function, topic, message_template;
     end
     finish_time = Base.time_ns()
     info = (value=value, is_error=false, time_ns=finish_time - start_time)
-    inner_ntfy(topic, message_template, info;
+    inner_ntfy(topic, message, info;
         title=title,
         tags=tags,
         priority=priority,

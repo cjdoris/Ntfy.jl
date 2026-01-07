@@ -63,9 +63,9 @@ Send a notification to `topic` with the given `message`. Optional keyword argume
 
 Raises an error if the server does not return a 2xx response (unless `nothrow=true`). Returns nothing on success.
 
-### `ntfy(topic, message_template; kwargs...) do f end`
+### `ntfy(topic, message; kwargs...) do f end`
 
-Execute `f()` and send a notification based on `message_template` on success or
+Execute `f()` and send a notification based on `message` on success or
 `error_message` on failure. Any keyword arguments (including `nothrow`) are
 forwarded to the inner `ntfy` call. This method returns the result of `f()` so
 callers can continue using the computed value even when notifications are
