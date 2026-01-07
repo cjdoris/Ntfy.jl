@@ -5,6 +5,7 @@ using Markdown
 using Mustache
 using OteraEngine
 using Preferences
+using StringTemplates
 using Base64
 using Ntfy
 
@@ -317,14 +318,24 @@ end
     @test Ntfy.render_template(template, info) ==
           "plain bold md **bold** success SUCCESS Success 1.23 1.23 s"
 
+    string_template = template"plain $value md $value_md $success $SUCCESS $Success $time_s $time"
+    @test Ntfy.render_template(string_template, info) ==
+          "plain bold md **bold** success SUCCESS Success 1.23 1.23 s"
+
     fallback_info = (value=BrokenMarkdownValue("plain"), is_error=false, time_ns=0)
     fallback_template = mt"md {{value_md}}"
     @test Ntfy.render_template(fallback_template, fallback_info) == "md ```\nplain\n```"
+
+    fallback_string_template = template"md $value_md"
+    @test Ntfy.render_template(fallback_string_template, fallback_info) == "md ```\nplain\n```"
 
     err = ErrorException("boom")
     err_info = (value=err, is_error=true, time_ns=1200)
     err_template = mt"{{#is_error}}error{{/is_error}} {{value}}"
     @test occursin("boom", Ntfy.render_template(err_template, err_info))
+
+    err_string_template = template"error $value"
+    @test occursin("boom", Ntfy.render_template(err_string_template, err_info))
 
     @test Ntfy.render_template(mt"elapsed {{time_ns}}", (value=0, is_error=false, time_ns=123)) ==
           "elapsed 123"
@@ -379,6 +390,31 @@ end
     @test Dict(handler.requests[end].headers)["X-Title"] == "error Error"
     @test Dict(handler.requests[end].headers)["X-Priority"] == "5"
     @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
+
+    handler = Ntfy.DummyRequestHandler()
+    message_template = template"message $value $success"
+    title_template = template"title $Success"
+    result = Ntfy.ntfy("dummy-topic", message_template; title=title_template, request_handler=handler) do
+        42
+    end
+    @test result == 42
+    @test handler.requests[end].body == "message 42 success"
+    @test Dict(handler.requests[end].headers)["X-Title"] == "title Success"
+
+    handler = Ntfy.DummyRequestHandler()
+    error_message_template = template"error $value"
+    error_title_template = template"title $SUCCESS"
+    @test_throws ErrorException Ntfy.ntfy(
+        "dummy-topic",
+        "unused";
+        error_message=error_message_template,
+        error_title=error_title_template,
+        request_handler=handler,
+    ) do
+        error("boom")
+    end
+    @test occursin("boom", handler.requests[end].body)
+    @test Dict(handler.requests[end].headers)["X-Title"] == "title ERROR"
 
     handler = Ntfy.DummyRequestHandler()
     message_template = OteraEngine.Template("message {{ value }} {{ success }}"; path=false)

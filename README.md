@@ -81,13 +81,13 @@ packages are loaded.
   supported clients render the result.
 - **Dates**: `delay` accepts `Date`, `DateTime`, and `Period` values from Dates
   and converts them into ntfy-compatible delay strings.
-- **Mustache**: The Mustache.jl extension lets the `ntfy(topic, template) do f end`
-  form accept `Mustache.MustacheTokens` (e.g. `mt"..."`) for the message or
-  title. Available fields include `value`, `value_md`, `success`, `SUCCESS`,
-  `Success`, `is_error`, and the time fields `time`, `time_ns`, `time_us`,
-  `time_ms`, `time_s`, `time_m`, `time_h`, and `time_d`.
-- **OteraEngine**: The OteraEngine.jl extension lets the `ntfy(topic, template) do f end`
-  form accept `OteraEngine.Template` values for the message or title. The template
-  `init` view includes `value`, `value_md`, `success`, `SUCCESS`, `Success`,
-  `is_error`, and the time fields `time`, `time_ns`, `time_us`, `time_ms`, `time_s`,
-  `time_m`, `time_h`, and `time_d`.
+- **StringTemplates**: The StringTemplates.jl extension lets the
+  `ntfy(topic, template) do f end` form accept `StringTemplates.Template` (e.g.
+  `template"..."` or `StringTemplates.template"..."`) for the message or title.
+  Available fields include `value`, `value_md`, `success`, `SUCCESS`, `Success`,
+  `is_error`, and the time fields `time`, `time_ns`, `time_us`, `time_ms`,
+  `time_s`, `time_m`, `time_h`, and `time_d`.
+- **Mustache**: The Mustache.jl extension is similar to StringTemplates,
+  supporting the same variables for message and title templates.
+- **OteraEngine**: The OteraEngine.jl extension is similar to StringTemplates,
+  supporting the same variables for message and title templates.
