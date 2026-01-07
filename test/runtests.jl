@@ -298,8 +298,24 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
 end
 
 @testset "format_message" begin
+    struct MarkdownValue
+        text::String
+    end
+    Base.show(io::IO, ::MIME"text/plain", value::MarkdownValue) = print(io, value.text)
+    Base.show(io::IO, ::MIME"text/markdown", value::MarkdownValue) = print(io, "**", value.text, "**")
+
+    struct BrokenMarkdownValue
+        text::String
+    end
+    Base.show(io::IO, ::MIME"text/plain", value::BrokenMarkdownValue) = print(io, value.text)
+    Base.show(::IO, ::MIME"text/markdown", ::BrokenMarkdownValue) = error("no markdown support")
+
     info = (value=42, is_error=false, time_ns=1_234_000_000)
     @test Ntfy.format_message("value: {{ value }}", info) == "value: 42"
+    md_info = (value=MarkdownValue("bold"), is_error=false, time_ns=0)
+    @test Ntfy.format_message("value: {{ value_md }}", md_info) == "value: **bold**"
+    fallback_info = (value=BrokenMarkdownValue("plain"), is_error=false, time_ns=0)
+    @test Ntfy.format_message("value: {{ value_md }}", fallback_info) == "value: ```\nplain\n```"
     @test Ntfy.format_message("status: {{ success }} / {{ SUCCESS }} / {{ Success }}", info) ==
           "status: success / SUCCESS / Success"
     @test Ntfy.format_message("elapsed: {{ time_s }} {{ time_s }}", info) == "elapsed: 1.23 1.23"
@@ -340,7 +356,7 @@ end
     ) do
         error("kaboom")
     end
-    @test endswith(handler.requests[end].body, "kaboom")
+    @test occursin("kaboom", handler.requests[end].body)
     @test Dict(handler.requests[end].headers)["X-Title"] == "error Error"
     @test Dict(handler.requests[end].headers)["X-Priority"] == "5"
     @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
