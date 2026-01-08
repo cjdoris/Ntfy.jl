@@ -1,7 +1,7 @@
 name = "Ntfy"
 uuid = "c3f3ecf3-19bc-4a36-8a68-efc7dc2c4e18"
 version = "0.1.0"
-authors = []
+authors = ["Christopher Rowley <github.com/cjdoris>"]
 
 [workspace]
 projects = ["test"]

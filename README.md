@@ -1,5 +1,9 @@
 # Ntfy.jl
 
+[![Project Status: Active – The project has reached a stable, usable state and is being actively developed.](https://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active)
+[![Test Status](https://github.com/cjdoris/Ntfy.jl/actions/workflows/tests.yml/badge.svg)](https://github.com/cjdoris/Ntfy.jl/actions/workflows/tests.yml)
+[![Codecov](https://codecov.io/gh/cjdoris/Ntfy.jl/branch/main/graph/badge.svg?token=1flP5128hZ)](https://codecov.io/gh/cjdoris/Ntfy.jl)
+
 Ntfy.jl is a lightweight Julia client for [ntfy.sh](https://ntfy.sh), letting you
 publish notifications via HTTP.
 
