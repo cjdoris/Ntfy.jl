@@ -57,7 +57,8 @@ Publish a notification to `topic` with `message` via the `ntfy.sh` service.
 - `tags`: The tag/tags, as a string or vector of strings.
 - `click`: The action to take when clicked, as a string.
 - `attach`: URL of an attachment, as a string.
-- `actions`: Action button/buttons, as a string or list of strings.
+- `actions`: Action button/buttons, as a string, a list of strings, or tuple
+  expressions like `:(view, "Open portal", "https://...", clear=true)`.
 - `email`: Email address to also notify, as a string.
 - `delay`: Specify a time in the future to send the notification, as a string or `DateTime` or `Period`.
 - `markdown`: Set to `true` if the `message` is markdown-formatted, for richer display.

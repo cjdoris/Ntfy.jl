@@ -99,7 +99,7 @@ end
             click = "https://home.nest.com/",
             attach = "https://nest.com/view/yAxkasd.jpg",
             actions = [
-                "view, Open portal, https://home.nest.com/, clear=true",
+                :(view, "Open portal", "https://home.nest.com/", clear=true),
                 "http, Open door, https://api.nest.com/open/yAxkasd, method=PUT",
             ],
             email = "phil@example.com",
@@ -222,6 +222,20 @@ end
 
         @test Ntfy.handle_actions!(copy(headers), "view, Open") == ["X-Actions" => "view, Open"]
         @test Ntfy.handle_actions!(copy(headers), ["view, Open", "dismiss"]) == ["X-Actions" => "view, Open; dismiss"]
+        @test Ntfy.handle_actions!(copy(headers), (:view, "Open")) == ["X-Actions" => "view, Open"]
+        @test Ntfy.handle_actions!(copy(headers), :(view, "Open portal", "https://example.com", clear=true)) ==
+            ["X-Actions" => "view, Open portal, https://example.com, clear=true"]
+        @test Ntfy.handle_actions!(copy(headers), :(view, "It's good, ok")) ==
+            ["X-Actions" => "view, \"It's good, ok\""]
+        @test Ntfy.handle_actions!(copy(headers), :(http, "Turn, down", "https://api", body="{\"temperature\": 65}")) ==
+            ["X-Actions" => "http, 'Turn, down', https://api, body='{\"temperature\": 65}'"]
+        @test Ntfy.handle_actions!(copy(headers), :(http, "Do", "https://api", headers=(foo=bar, baz=true))) ==
+            ["X-Actions" => "http, Do, https://api, headers.foo=bar, headers.baz=true"]
+        @test Ntfy.handle_actions!(copy(headers), Expr(:tuple, :view, Expr(:(=), "header", "value"))) ==
+            ["X-Actions" => "view, header=value"]
+        @test_throws ErrorException Ntfy.handle_actions!(headers, :(view, "He said \"hi\" and it's ok"))
+        @test_throws ErrorException Ntfy.handle_actions!(headers, Expr(:tuple, :view, Expr(:(=), 1, "value")))
+        @test_throws ErrorException Ntfy.handle_actions!(headers, Expr(:tuple, :view, Expr(:(=), :data, Expr(:tuple, 1, 2))))
         @test_throws ErrorException Ntfy.handle_actions!(headers, 42)
 
         @test Ntfy.handle_extra_headers!(copy(headers), Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
