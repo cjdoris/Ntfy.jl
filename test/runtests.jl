@@ -2,10 +2,7 @@ using Test
 using Dates
 using Downloads
 using Markdown
-using Mustache
-using OteraEngine
 using Preferences
-using StringTemplates
 using Base64
 using Ntfy
 
@@ -279,50 +276,29 @@ end
     Base.show(::IO, ::MIME"text/markdown", ::BrokenMarkdownValue) = error("no markdown support")
 
     info = (value=MarkdownValue("bold"), is_error=false, time=1.234)
-    template = mt"plain {{value_str}} md {{value_md}} {{success_str}} {{SUCCESS_str}} {{Success_str}} {{time_str}}"
+    template = :"plain $value md $value_md $success $SUCCESS $Success $time"
     @test Ntfy.render_template(template, info) ==
           "plain bold md **bold** success SUCCESS Success 1.23 s"
 
-    string_template = template"plain $value_str md $value_md $success_str $SUCCESS_str $Success_str $time_str"
-    @test Ntfy.render_template(string_template, info) ==
-          "plain bold md **bold** success SUCCESS Success 1.23 s"
-
     fallback_info = (value=BrokenMarkdownValue("plain"), is_error=false, time=0.0)
-    fallback_template = mt"md {{value_md}}"
+    fallback_template = :"md $value_md"
     @test Ntfy.render_template(fallback_template, fallback_info) == "md ```\nplain\n```"
-
-    fallback_string_template = template"md $value_md"
-    @test Ntfy.render_template(fallback_string_template, fallback_info) == "md ```\nplain\n```"
 
     err = ErrorException("boom")
     err_info = (value=err, is_error=true, time=1.2e-6)
-    err_template = mt"{{#is_error}}error{{/is_error}} {{value_str}}"
+    err_template = :"error $value"
     @test occursin("boom", Ntfy.render_template(err_template, err_info))
 
-    err_string_template = template"error $value_str"
-    @test occursin("boom", Ntfy.render_template(err_string_template, err_info))
-
-    @test Ntfy.render_template(mt"elapsed {{time_str}}", (value=0, is_error=false, time=86400.0)) ==
+    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=86400.0)) ==
           "elapsed 1 d"
-    @test Ntfy.render_template(mt"elapsed {{time_str}}", (value=0, is_error=false, time=3600.0)) ==
+    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=3600.0)) ==
           "elapsed 1 h"
-    @test Ntfy.render_template(mt"elapsed {{time_str}}", (value=0, is_error=false, time=60.0)) ==
+    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=60.0)) ==
           "elapsed 1 m"
-    @test Ntfy.render_template(mt"elapsed {{time_str}}", (value=0, is_error=false, time=1.23)) ==
+    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=1.23)) ==
           "elapsed 1.23 s"
-    @test Ntfy.render_template(mt"elapsed {{time_str}}", (value=0, is_error=false, time=0.0)) ==
+    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=0.0)) ==
           "elapsed 0 s"
-
-    otera_template = OteraEngine.Template("elapsed {{ time_str }}"; path=false)
-    @test Ntfy.render_template(otera_template, (value=0, is_error=false, time=0.0)) ==
-          "elapsed 0 s"
-
-    mustache_ext = Base.get_extension(Ntfy, :MustacheExt)
-    @test mustache_ext !== nothing
-    @test mustache_ext.template_value(:value, info) === info.value
-    @test mustache_ext.template_value(:time, info) == info.time
-    @test mustache_ext.template_value("value_str", info) == "bold"
-    @test_throws ErrorException mustache_ext.template_value(:unknown_key, (value=0, is_error=false, time=0.0))
 
     struct FancyError <: Exception
         msg::String
@@ -330,8 +306,11 @@ end
     Base.show(io::IO, err::FancyError) = print(io, "show:", err.msg)
     Base.showerror(io::IO, err::FancyError) = print(io, "showerror:", err.msg)
     fancy_info = (value=FancyError("fail"), is_error=true, time=0.0)
-    @test Ntfy.render_template(mt"{{value_str}}", fancy_info) == "showerror:fail"
-    @test_throws ErrorException mustache_ext.render_value(fancy_info, MIME"text/markdown"())
+    @test Ntfy.render_template(:"$value", fancy_info) == "showerror:fail"
+    @test Ntfy.render_template(:"$value_md", fancy_info) == "```\nshowerror:fail\n```"
+    @test_throws ErrorException Ntfy.render_template(:(value + 1), info)
+    @test_throws ErrorException Ntfy.render_template(Expr(:string, "bad ", 1), info)
+    @test_throws ErrorException Ntfy.render_template(:"$unknown", info)
 end
 
 @testset "do-notation" begin
@@ -339,8 +318,8 @@ end
 
     result = Ntfy.ntfy(
         "dummy-topic",
-        mt"result {{value_str}} - {{SUCCESS_str}}";
-        title = mt"overall {{Success_str}}",
+        :"result $value - $SUCCESS";
+        title = :"overall $Success",
         request_handler=handler,
     ) do
         99
@@ -351,10 +330,10 @@ end
 
     @test_throws ErrorException Ntfy.ntfy(
         "dummy-topic",
-        mt"{{^is_error}}ok{{/is_error}}{{#is_error}}failing{{/is_error}} {{value_str}}";
-        error_message = mt"failed {{SUCCESS_str}}: {{value_str}}",
-        title = mt"failing {{SUCCESS_str}}",
-        error_title = mt"error {{Success_str}}",
+        :"ok $value";
+        error_message = :"failed $SUCCESS: $value",
+        title = :"failing $SUCCESS",
+        error_title = :"error $Success",
         error_priority = 5,
         error_tags = ["fire"],
         request_handler=handler,
@@ -367,8 +346,8 @@ end
     @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
 
     handler = Ntfy.DummyRequestHandler()
-    message_template = template"message $value_str $success_str"
-    title_template = template"title $Success_str"
+    message_template = :"message $value $success"
+    title_template = :"title $Success"
     result = Ntfy.ntfy("dummy-topic", message_template; title=title_template, request_handler=handler) do
         42
     end
@@ -377,33 +356,8 @@ end
     @test Dict(handler.requests[end].headers)["X-Title"] == "title Success"
 
     handler = Ntfy.DummyRequestHandler()
-    error_message_template = template"error $value_str"
-    error_title_template = template"title $SUCCESS_str"
-    @test_throws ErrorException Ntfy.ntfy(
-        "dummy-topic",
-        "unused";
-        error_message=error_message_template,
-        error_title=error_title_template,
-        request_handler=handler,
-    ) do
-        error("boom")
-    end
-    @test occursin("boom", handler.requests[end].body)
-    @test Dict(handler.requests[end].headers)["X-Title"] == "title ERROR"
-
-    handler = Ntfy.DummyRequestHandler()
-    message_template = OteraEngine.Template("message {{ value_str }} {{ success_str }}"; path=false)
-    title_template = OteraEngine.Template("title {{ Success_str }}"; path=false)
-    result = Ntfy.ntfy("dummy-topic", message_template; title=title_template, request_handler=handler) do
-        42
-    end
-    @test result == 42
-    @test handler.requests[end].body == "message 42 success"
-    @test Dict(handler.requests[end].headers)["X-Title"] == "title Success"
-
-    handler = Ntfy.DummyRequestHandler()
-    error_message_template = OteraEngine.Template("error {{ value_str }}"; path=false)
-    error_title_template = OteraEngine.Template("title {{ SUCCESS_str }}"; path=false)
+    error_message_template = :"error $value"
+    error_title_template = :"title $SUCCESS"
     @test_throws ErrorException Ntfy.ntfy(
         "dummy-topic",
         "unused";

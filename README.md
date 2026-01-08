@@ -33,8 +33,7 @@ ntfy(
 )
 
 # Notify when a long-running task finishes or errors
-using StringTemplates
-ntfy("job_status", template"$success_str: $value_str";
+ntfy("job_status", :"$SUCCESS: $value";
   title="Job #12", error_tags="bangbang"
 ) do
     sleep(10)
@@ -92,19 +91,15 @@ case where `f()` throws an exception: `error_message`, `error_title`, `error_tag
 #### Templating
 
 The `message` and `title` (and `error_message` and `error_title`) arguments can take a
-template from
-[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
-[Mustache.jl](https://github.com/jverzani/Mustache.jl/), or
-[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/),
-in which case it will be formatted with the following values:
-- `is_error`: `true` if an error occurred.
-- `success_str`: The string `"success"` or `"error"`. Also `Success_str` and `SUCCESS_str` to get
+simple interpolated string expression like `:"$SUCCESS: $value"`. The expression
+must have head `:string` and contain only string and symbol arguments. The supported
+template symbols are:
+- `success`: The string `"success"` or `"error"`. Also `Success` and `SUCCESS` to get
   these words with a different capitalisation.
-- `value`: The return value of `f()` or the exception it threw.
-- `value_str`: The value, stringified with `show` (or `showerror` for exceptions).
+- `value`: The return value of `f()` or the exception it threw, stringified with
+  `show` (or `showerror` for exceptions).
 - `value_md`: The value, stringified as markdown (to use with arg `markdown=true`).
-- `time`: The elapsed time in seconds.
-- `time_str`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
+- `time`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
 
 For more fine-grained formatting, the `message` and most keyword arguments can also take
 a function value. In this case the argument is called like `arg(info)` to get its value,
@@ -136,8 +131,5 @@ automatically.
 [Dates.jl](https://docs.julialang.org/en/v1/stdlib/Dates/):
 The `delay` can be a `DateTime`, `Date`, `Second`, `Minute`, `Hour` or `Day`.
 
-[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
-[Mustache.jl](https://github.com/jverzani/Mustache.jl/),
-[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/):
-The `message` and `title` of the 3-arg `ntfy` can be a template from one of these
-packages. See the docstring for more info.
+The `message` and `title` of the 3-arg `ntfy` can be a simple interpolated string
+expression (`Expr` with head `:string`). See the docstring for more info.

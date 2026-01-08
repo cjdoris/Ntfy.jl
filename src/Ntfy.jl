@@ -5,6 +5,7 @@ export ntfy
 using Base64
 using Downloads
 using Preferences
+using Printf
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
 const BASE_URL_PREFERENCE = "base_url"
@@ -51,13 +52,115 @@ end
 """
     render_template(template, info)
 
-Return the rendered `template` for the provided `info`. By default strings are
-returned unchanged and function templates are called with `info`. Extensions can
-add additional `render_template` methods for richer template types.
+Return the rendered `template` for the provided `info`. Strings are returned
+unchanged, function templates are called with `info`, and `Expr` templates with
+`head == :string` are rendered by substituting supported symbols.
 """
 render_template(template::AbstractString, info) = template
 render_template(template::Function, info) = template(info)
 render_template(template, info) = template
+
+"""
+    render_template(template::Expr, info)
+
+Render a string interpolation expression using supported template keys.
+"""
+function render_template(template::Expr, info)
+    template.head == :string || error("Unsupported template expression type")
+    parts = String[]
+    for arg in template.args
+        if arg isa Symbol
+            push!(parts, template_value(arg, info))
+        elseif arg isa AbstractString
+            push!(parts, String(arg))
+        else
+            error("Unsupported template expression argument type: $(typeof(arg))")
+        end
+    end
+    return join(parts)
+end
+
+"""
+    format_time_value(value)
+
+Format a numeric time value with at most three significant figures.
+"""
+function format_time_value(value)
+    return @sprintf("%.3g", float(value))
+end
+
+"""
+    format_elapsed_time(time_seconds)
+
+Format an elapsed duration, provided in seconds, into a human-readable string.
+"""
+function format_elapsed_time(time_seconds)
+    time_value = float(time_seconds)
+    if time_value >= 86400.0
+        return "$(format_time_value(time_value / 86400.0)) d"
+    elseif time_value >= 3600.0
+        return "$(format_time_value(time_value / 3600.0)) h"
+    elseif time_value >= 60.0
+        return "$(format_time_value(time_value / 60.0)) m"
+    else
+        return "$(format_time_value(time_value)) s"
+    end
+end
+
+"""
+    render_value(info, mime)
+
+Render `info.value` using the provided MIME type.
+"""
+function render_value(info, mime=MIME"text/plain"())
+    if info.is_error
+        if mime isa MIME"text/plain"
+            io = IOBuffer()
+            showerror(IOContext(io, :limit => true), info.value)
+            return String(take!(io))
+        end
+        error("Cannot render non-plain MIME content for error values.")
+    end
+    io = IOBuffer()
+    show(IOContext(io, :limit => true), mime, info.value)
+    return String(take!(io))
+end
+
+"""
+    render_markdown_value(info)
+
+Render `info.value` as markdown, falling back to a plain text code block.
+"""
+function render_markdown_value(info)
+    try
+        return render_value(info, MIME"text/markdown"())
+    catch err
+        plain_value = render_value(info)
+        return "```\n$(plain_value)\n```"
+    end
+end
+
+"""
+    template_value(key, info)
+
+Return the substitution value for `key` using the provided notification info.
+"""
+function template_value(key::Symbol, info)
+    if key === :value
+        return render_value(info)
+    elseif key === :value_md
+        return render_markdown_value(info)
+    elseif key === :success
+        return info.is_error ? "error" : "success"
+    elseif key === :SUCCESS
+        return info.is_error ? "ERROR" : "SUCCESS"
+    elseif key === :Success
+        return info.is_error ? "Error" : "Success"
+    elseif key === :time
+        return format_elapsed_time(info.time)
+    end
+    error("Unsupported template key: $(key)")
+end
 
 """
     handle_priority!(headers, priority)
@@ -383,19 +486,15 @@ case where `f()` throws an exception: `error_message`, `error_title`, `error_tag
 ## Templating
 
 The `message` and `title` (and `error_message` and `error_title`) arguments can take a
-template from
-[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
-[Mustache.jl](https://github.com/jverzani/Mustache.jl/), or
-[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/),
-in which case it will be formatted with the following values:
-- `is_error`: `true` if an error occurred.
-- `success_str`: The string `"success"` or `"error"`. Also `Success_str` and `SUCCESS_str` to get
+simple interpolated string expression like `:"\$SUCCESS: \$value"`. The expression
+must have head `:string` and contain only string and symbol arguments. The supported
+template symbols are:
+- `success`: The string `"success"` or `"error"`. Also `Success` and `SUCCESS` to get
   these words with a different capitalisation.
-- `value`: The return value of `f()` or the exception it threw.
-- `value_str`: The value, stringified with `show` (or `showerror` for exceptions).
+- `value`: The return value of `f()` or the exception it threw, stringified with
+  `show` (or `showerror` for exceptions).
 - `value_md`: The value, stringified as markdown (to use with arg `markdown=true`).
-- `time`: The elapsed time in seconds.
-- `time_str`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
+- `time`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
 
 For more fine-grained formatting, the `message` and most keyword arguments can also take
 a function value. In this case the argument is called like `arg(info)` to get its value,
