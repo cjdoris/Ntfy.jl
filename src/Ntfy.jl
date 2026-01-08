@@ -274,7 +274,8 @@ Publish a notification to `topic` with `message` via the `ntfy.sh` service.
 ## Configuration
 
 Keyword arguments take precendence, but some default values can be configured via
-preferences (in the sense of Preferences.jl) or environment variables.
+preferences (in the sense of [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl))
+or environment variables.
 
 `base_url`: This is `$DEFAULT_BASE_URL` by default but can be set with the
 `$BASE_URL_PREFERENCE` preference or the `$BASE_URL_ENVIRONMENT` environment variable.
@@ -286,11 +287,12 @@ preferences (in the sense of Preferences.jl) or environment variables.
 
 ## Extensions
 
-`Markdown`: The message can also be a `md"..."` string, in which case `markdown=true` is
-set automatically.
+[Markdown.jl](https://docs.julialang.org/en/v1/stdlib/Markdown/):
+The `message` can also be a `md"..."` string, in which case `markdown=true` is set
+automatically.
 
-`Dates`: The `delay` can  `DateTime`, `Date`, `Nanosecond`, `Microsecond`,
-`Millisecond`, `Second`, `Minute`, `Hour`.
+[Dates.jl](https://docs.julialang.org/en/v1/stdlib/Dates/):
+The `delay` can be a `DateTime`, `Date`, `Second`, `Minute`, `Hour` or `Day`.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
@@ -348,7 +350,8 @@ end
 """
     ntfy(f:Function, topic, message; ...)
 
-Call `f()` then `ntfy(topic, message; ...)` then return `f()`.
+Call `f()` then `ntfy(topic, message; ...)` then return `f()`. This is intended to be
+used with Julia's `do` notation (see the example below).
 
 If `f()` throws an exception then `ntfy()` is still called before the exception is
 propagated.
@@ -357,8 +360,6 @@ Keyword arguments and templating can be used to format the message and other fie
 incorporate success/error information and the return value or thrown exception.
 
 !!! example
-
-    This is most useful with Julia's do-notation:
 
     ```julia
     ntfy("mytopic", "Success"; error_message="Error", title="Job #123", error_priority=5, nothrow=true) do
@@ -382,8 +383,11 @@ case where `f()` throws an exception: `error_message`, `error_title`, `error_tag
 ## Templating
 
 The `message` and `title` (and `error_message` and `error_title`) arguments can take a
-template from StringTemplates.jl, Mustache.jl or OteraEngine.jl, in which case it will
-be formatted with the following values:
+template from
+[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
+[Mustache.jl](https://github.com/jverzani/Mustache.jl/), or
+[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/),
+in which case it will be formatted with the following values:
 - `is_error`: `true` if an error occurred.
 - `success_str`: The string `"success"` or `"error"`. Also `Success_str` and `SUCCESS_str` to get
   these words with a different capitalisation.

@@ -34,7 +34,9 @@ ntfy(
 
 # Notify when a long-running task finishes or errors
 using StringTemplates
-ntfy("job_status", template"$success_str: $value_str"; title="Job #12", error_tags="bangbang") do
+ntfy("job_status", template"$success_str: $value_str";
+  title="Job #12", error_tags="bangbang"
+) do
     sleep(10)
     rand(Bool) ? 999 : error("kaboom")
 end
@@ -69,7 +71,8 @@ Publish a notification to `topic` with `message` via the `ntfy.sh` service.
 
 ### `ntfy(f::Function, topic, message; ...)`
 
-Call `f()` then `ntfy(topic, message; ...)` then return `f()`.
+Call `f()` then `ntfy(topic, message; ...)` then return `f()`. This is intended to be
+used with Julia's `do` notation.
 
 If `f()` throws an exception then `ntfy()` is still called before the exception is
 propagated.
@@ -89,8 +92,11 @@ case where `f()` throws an exception: `error_message`, `error_title`, `error_tag
 #### Templating
 
 The `message` and `title` (and `error_message` and `error_title`) arguments can take a
-template from StringTemplates.jl, Mustache.jl or OteraEngine.jl, in which case it will
-be formatted with the following values:
+template from
+[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
+[Mustache.jl](https://github.com/jverzani/Mustache.jl/), or
+[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/),
+in which case it will be formatted with the following values:
 - `is_error`: `true` if an error occurred.
 - `success_str`: The string `"success"` or `"error"`. Also `Success_str` and `SUCCESS_str` to get
   these words with a different capitalisation.
@@ -110,7 +116,8 @@ where `info` has these fields:
 ### Configuration
 
 Keyword arguments take precendence, but some default values can be configured via
-preferences (in the sense of Preferences.jl) or environment variables.
+preferences (in the sense of [Preferences.jl](https://github.com/JuliaPackaging/Preferences.jl))
+or environment variables.
 
 `base_url`: This is `https://ntfy.sh` by default but can be set with the
 `base_url` preference or the `NTFY_BASE_URL` environment variable.
@@ -122,11 +129,15 @@ preferences (in the sense of Preferences.jl) or environment variables.
 
 ### Extensions
 
-Markdown: The `message` can also be a `md"..."` string, in which case `markdown=true` is
-set automatically.
+[Markdown.jl](https://docs.julialang.org/en/v1/stdlib/Markdown/):
+The `message` can also be a `md"..."` string, in which case `markdown=true` is set
+automatically.
 
-Dates: The `delay` can  `DateTime`, `Date`, `Nanosecond`, `Microsecond`,
-`Millisecond`, `Second`, `Minute`, `Hour`.
+[Dates.jl](https://docs.julialang.org/en/v1/stdlib/Dates/):
+The `delay` can be a `DateTime`, `Date`, `Second`, `Minute`, `Hour` or `Day`.
 
-StringTemplates/Mustache/OteraEngine: The `message` and `title` of the 3-arg `ntfy` can
-be a template from one of these packages. See the docstring for more info.
+[StringTemplates.jl](https://github.com/joshday/StringTemplates.jl/),
+[Mustache.jl](https://github.com/jverzani/Mustache.jl/),
+[OteraEngine.jl](https://github.com/MommaWatasu/OteraEngine.jl/):
+The `message` and `title` of the 3-arg `ntfy` can be a template from one of these
+packages. See the docstring for more info.
