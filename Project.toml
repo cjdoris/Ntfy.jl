@@ -27,6 +27,7 @@ OteraEngineExt = "OteraEngine"
 StringTemplatesExt = "StringTemplates"
 
 [compat]
+Downloads = "1.7.0"
 Mustache = "1.0"
 OteraEngine = "1.1"
 Preferences = "1.5.1"
