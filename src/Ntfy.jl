@@ -4,7 +4,6 @@ export ntfy
 
 using Base64
 using Downloads
-using Printf
 using Preferences
 
 const DEFAULT_BASE_URL = "https://ntfy.sh"
@@ -386,20 +385,20 @@ The `message` and `title` (and `error_message` and `error_title`) arguments can 
 template from StringTemplates.jl, Mustache.jl or OteraEngine.jl, in which case it will
 be formatted with the following values:
 - `is_error`: `true` if an error occurred.
-- `success`: The string `"success"` or `"error"`. Also `Success` and `SUCCESS` to get
+- `success_str`: The string `"success"` or `"error"`. Also `Success_str` and `SUCCESS_str` to get
   these words with a different capitalisation.
-- `value`: The value, stringified with `show` (or `showerror` for exceptions).
+- `value`: The return value of `f()` or the exception it threw.
+- `value_str`: The value, stringified with `show` (or `showerror` for exceptions).
 - `value_md`: The value, stringified as markdown (to use with arg `markdown=true`).
-- `time`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
-- `time_ns`, `time_us`, `time_ms`, `time_s`, `time_m`, `time_h`, `time_d`: The elapsed
-  time in the given units, as a string with at most 3 significant figures.
+- `time`: The elapsed time in seconds.
+- `time_str`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
 
 For more fine-grained formatting, the `message` and most keyword arguments can also take
 a function value. In this case the argument is called like `arg(info)` to get its value,
 where `info` has these fields:
 - `is_error`: `true` if an error occurred.
 - `value`: The return value of `f()`, or the exception it threw.
-- `time_ns`: The elapsed time in nanoseconds.
+- `time`: The elapsed time in seconds.
 """
 function ntfy(f::Function, topic, message;
         error_message=message,
@@ -484,7 +483,7 @@ function ntfy(f::Function, topic, message;
         f()
     catch err
         finish_time = Base.time_ns()
-        info = (value=err, is_error=true, time_ns=finish_time - start_time)
+        info = (value=err, is_error=true, time=(finish_time - start_time) / 1e9)
         inner_ntfy(topic, error_message, info;
             title=error_title,
             tags=error_tags,
@@ -498,7 +497,7 @@ function ntfy(f::Function, topic, message;
         rethrow()
     end
     finish_time = Base.time_ns()
-    info = (value=value, is_error=false, time_ns=finish_time - start_time)
+    info = (value=value, is_error=false, time=(finish_time - start_time) / 1e9)
     inner_ntfy(topic, message, info;
         title=title,
         tags=tags,

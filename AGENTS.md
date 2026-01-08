@@ -14,3 +14,4 @@
 - Mustache.jl templates are supported only via the Mustache extension, which owns the `template_view` helper and includes
   the `is_error` field.
 - Time formatting helpers for templates live in MustacheExt, not in the core module.
+- Template substitution keys that return strings use a `_str` suffix (except `value_md`), and `info.time` stores elapsed seconds as a float.
