@@ -15,11 +15,21 @@ pop!(ENV, "NTFY_TOKEN", nothing)
 pop!(ENV, "NTFY_USER", nothing)
 pop!(ENV, "NTFY_PASSWORD", nothing)
 
+"""
+    dummy_ntfy(args...; kwargs...)
+
+Call `Ntfy.ntfy` with a fresh `DummyRequestHandler` and return the single recorded
+request.
+"""
+function dummy_ntfy(args...; kwargs...)
+    handler = Ntfy.DummyRequestHandler()
+    Ntfy.ntfy(args...; kwargs..., request_handler=handler)
+    return only(handler.requests)
+end
+
 @testset "ntfy" begin
     @testset "defaults" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("mytopic", "Backup successful 😀"; request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("mytopic", "Backup successful 😀")
         @test req.method == "POST"
         @test req.url == "https://ntfy.sh/mytopic"
         @test req.headers == Pair{String,String}[]
@@ -27,27 +37,20 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
     end
 
     @testset "auth" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("secrets", "payload"; auth = "Custom", request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("secrets", "payload"; auth = "Custom")
         @test req.headers == ["Authorization" => "Bearer Custom"]
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("secrets", "payload"; auth = ("user", "pass"), request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("secrets", "payload"; auth = ("user", "pass"))
         encoded = Base64.base64encode("user:pass")
         @test req.headers == ["Authorization" => "Basic $(encoded)"]
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy(
+        req = dummy_ntfy(
             "secrets",
             "payload";
             auth = ("user", "pass"),
             extra_headers = Dict("X-Test" => "yes"),
             priority = "high",
-            request_handler = handler,
         )
-        req = only(handler.requests)
         encoded = Base64.base64encode("user:pass")
         @test req.headers == [
             "X-Priority" => "high",
@@ -55,26 +58,22 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
             "X-Test" => "yes",
         ]
 
-        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = 123, request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("token",), request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("secrets", "payload"; auth = ("too", "many", "values"), request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException dummy_ntfy("secrets", "payload"; auth = 123)
+        @test_throws ErrorException dummy_ntfy("secrets", "payload"; auth = ("token",))
+        @test_throws ErrorException dummy_ntfy("secrets", "payload"; auth = ("too", "many", "values"))
 
         @testset "defaults from preferences" begin
             mktempdir() do prefs_path
                 withenv("JULIA_PREFERENCES_PATH" => prefs_path) do
                     Preferences.set_preferences!(Ntfy, "token" => "pref-token"; force = true)
 
-                    handler = Ntfy.DummyRequestHandler()
-                    Ntfy.ntfy("defaults", "payload"; request_handler = handler)
-                    req = only(handler.requests)
+                    req = dummy_ntfy("defaults", "payload")
                     @test req.headers == ["Authorization" => "Bearer pref-token"]
 
                     Preferences.delete_preferences!(Ntfy, "token"; force = true, block_inheritance = true)
                     Preferences.set_preferences!(Ntfy, "user" => "pref-user", "password" => "pref-pass"; force = true)
 
-                    handler = Ntfy.DummyRequestHandler()
-                    Ntfy.ntfy("defaults", "payload"; request_handler = handler)
-                    req = only(handler.requests)
+                    req = dummy_ntfy("defaults", "payload")
                     encoded = Base64.base64encode("pref-user:pref-pass")
                     @test req.headers == ["Authorization" => "Basic $(encoded)"]
 
@@ -85,9 +84,7 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
                         "NTFY_USER" => "env-user",
                         "NTFY_PASSWORD" => "env-pass",
                     ) do
-                        handler = Ntfy.DummyRequestHandler()
-                        Ntfy.ntfy("defaults", "payload"; request_handler = handler)
-                        req = only(handler.requests)
+                        req = dummy_ntfy("defaults", "payload")
                         @test req.headers == ["Authorization" => "Bearer env-token"]
                     end
                 end
@@ -96,8 +93,7 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
     end
 
     @testset "headers" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy(
+        req = dummy_ntfy(
             "phil_alerts",
             "Remote access detected. Act right away.";
             priority = "urgent",
@@ -112,9 +108,7 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
             email = "phil@example.com",
             delay = "tomorrow, 10am",
             extra_headers = Dict("X-Test" => "yes"),
-            request_handler = handler,
         )
-        req = only(handler.requests)
         expected_headers = [
             "X-Priority" => "urgent",
             "X-Title" => "Unauthorized access detected",
@@ -130,16 +124,12 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
     end
 
     @testset "markdown disabled" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("dummy-topic", "msg"; markdown = false, request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("dummy-topic", "msg"; markdown = false)
         @test req.headers == Pair{String,String}[]
     end
 
     @testset "base url" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("dummy-topic", "hi"; base_url = "https://example.com/", title = "unused", request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("dummy-topic", "hi"; base_url = "https://example.com/", title = "unused")
         @test req.url == "https://example.com/dummy-topic"
 
         @testset "from preference" begin
@@ -150,9 +140,7 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
                 ) do
                     Preferences.set_preferences!(Ntfy, "base_url" => "https://prefs.example/"; force = true)
 
-                    handler = Ntfy.DummyRequestHandler()
-                    Ntfy.ntfy("pref-topic", "hi"; title = "unused", request_handler=handler)
-                    pref_req = only(handler.requests)
+                    pref_req = dummy_ntfy("pref-topic", "hi"; title = "unused")
                     @test pref_req.url == "https://prefs.example/pref-topic"
                 end
             end
@@ -160,79 +148,60 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
 
         @testset "from env" begin
             mktempdir() do prefs_path
-                handler = Ntfy.DummyRequestHandler()
                 withenv(
                     "JULIA_PREFERENCES_PATH" => prefs_path,
                     "NTFY_BASE_URL" => "https://env.example/",
                 ) do
                     Preferences.delete_preferences!(Ntfy, Ntfy.BASE_URL_PREFERENCE; force = true, block_inheritance = true)
-                    Ntfy.ntfy("env-topic", "hi"; title = "unused", request_handler=handler)
+                    env_req = dummy_ntfy("env-topic", "hi"; title = "unused")
+                    @test env_req.url == "https://env.example/env-topic"
                 end
-                env_req = only(handler.requests)
-                @test env_req.url == "https://env.example/env-topic"
             end
         end
     end
 
     @testset "extra headers vector" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("dummy-topic", "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"], request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("dummy-topic", "msg"; extra_headers = ["X-One" => "1", "X-Two" => "2"])
         @test req.headers == ["X-One" => "1", "X-Two" => "2"]
     end
 
     @testset "delay" begin
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("reminders", "Drink water"; delay = "30m", request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "Drink water"; delay = "30m")
         @test req.headers == ["X-Delay" => "30m"]
     end
 
     @testset "delay dates extension" begin
-        handler = Ntfy.DummyRequestHandler()
         dt = DateTime(2024, 1, 2, 3, 4, 5)
-        Ntfy.ntfy("reminders", "time"; delay = dt, request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "time"; delay = dt)
         @test req.headers == ["X-Delay" => string(floor(Int, Dates.datetime2unix(dt)))]
 
-        handler = Ntfy.DummyRequestHandler()
         date = Date(2024, 1, 2)
-        Ntfy.ntfy("reminders", "date"; delay = date, request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "date"; delay = date)
         @test req.headers == ["X-Delay" => string(floor(Int, Dates.datetime2unix(DateTime(date))))]
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("reminders", "seconds"; delay = Second(5), request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "seconds"; delay = Second(5))
         @test req.headers == ["X-Delay" => "5 seconds"]
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("reminders", "minutes"; delay = Minute(1), request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "minutes"; delay = Minute(1))
         @test req.headers == ["X-Delay" => "1 minute"]
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("reminders", "hours"; delay = Hour(2), request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "hours"; delay = Hour(2))
         @test req.headers == ["X-Delay" => "2 hours"]
 
-        handler = Ntfy.DummyRequestHandler()
-        @test_throws ErrorException Ntfy.ntfy("reminders", "weeks"; delay = Week(1), request_handler = handler)
+        @test_throws ErrorException dummy_ntfy("reminders", "weeks"; delay = Week(1))
 
-        handler = Ntfy.DummyRequestHandler()
-        Ntfy.ntfy("reminders", "days"; delay = Day(1), request_handler = handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("reminders", "days"; delay = Day(1))
         @test req.headers == ["X-Delay" => "1 day"]
     end
 
     @testset "invalid types" begin
-        @test_throws ErrorException Ntfy.ntfy(123, "msg"; request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", 456; request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; extra_headers = ["bad"], request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; base_url = 123, request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = "", request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; delay = 123, request_handler = Ntfy.DummyRequestHandler())
-        @test_throws ErrorException Ntfy.ntfy("topic", "msg"; markdown = "yes", request_handler = Ntfy.DummyRequestHandler())
+        @test_throws ErrorException dummy_ntfy(123, "msg")
+        @test_throws ErrorException dummy_ntfy("topic", 456)
+        @test_throws ErrorException dummy_ntfy("topic", "msg"; extra_headers = ["bad"])
+        @test_throws ErrorException dummy_ntfy("topic", "msg"; base_url = 123)
+        @test_throws ErrorException dummy_ntfy("topic", "msg"; delay = "")
+        @test_throws ErrorException dummy_ntfy("topic", "msg"; delay = 123)
+        @test_throws ErrorException dummy_ntfy("topic", "msg"; markdown = "yes")
     end
 
     @testset "handle helpers" begin
@@ -284,17 +253,13 @@ pop!(ENV, "NTFY_PASSWORD", nothing)
     end
 
     @testset "markdown extension" begin
-        handler = Ntfy.DummyRequestHandler()
         msg = md"**bold** text"
-        Ntfy.ntfy("markdown-topic", msg; request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("markdown-topic", msg)
         @test req.body == string(msg)
         @test Dict(req.headers)["X-Markdown"] == "yes"
 
-        handler = Ntfy.DummyRequestHandler()
         msg = md"plain"
-        Ntfy.ntfy("markdown-topic", msg; markdown=false, title="ignored", request_handler=handler)
-        req = only(handler.requests)
+        req = dummy_ntfy("markdown-topic", msg; markdown=false, title="ignored")
         @test req.body == string(msg)
         @test !haskey(Dict(req.headers), "X-Markdown")
     end
