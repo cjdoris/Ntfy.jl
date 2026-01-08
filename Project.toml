@@ -15,25 +15,16 @@ Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
 [weakdeps]
 Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
 Markdown = "d6f4376e-aef5-505a-96c1-9c027394607a"
-Mustache = "ffc61752-8dc7-55ee-8c37-f3e9cdd09e70"
-OteraEngine = "b2d7f28f-acd6-4007-8b26-bc27716e5513"
-StringTemplates = "59c22e0c-4e04-425f-9782-11a552c58a8d"
 
 [extensions]
 DatesExt = "Dates"
 MarkdownExt = "Markdown"
-MustacheExt = "Mustache"
-OteraEngineExt = "OteraEngine"
-StringTemplatesExt = "StringTemplates"
 
 [compat]
 Base64 = "1.11"
 Downloads = "1.7"
 Dates = "1.11"
 Markdown = "1.11"
-Mustache = "1.0"
-OteraEngine = "1.1"
 Preferences = "1.5"
 Printf = "1.11"
-StringTemplates = "0.1"
 julia = "1.12"
