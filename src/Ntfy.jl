@@ -226,29 +226,72 @@ function handle_extra_headers!(headers, extra_headers::AbstractVector)
 end
 handle_extra_headers!(headers, ::Any) = error("Unsupported extra_headers type")
 
+function ntfy end
+
 """
     ntfy(topic, message; ...)
 
-Publish a notification to `topic` with `message` via the ntfy.sh service. Optional
-settings correspond to the headers supported by ntfy.sh. Raises an error if the
-response status is not in the 2xx range unless `nothrow=true`, in which case the
-error is logged and suppressed.
+Publish a notification to `topic` with `message` via the `ntfy.sh` service.
 
-# Keyword Arguments
-- `priority`
-- `title`
-- `tags`
-- `click`
-- `attach`
-- `actions`
-- `email`
-- `delay`
-- `markdown`
-- `extra_headers`
-- `base_url`
-- `auth`
-- `request_handler`
-- `nothrow`
+## Keyword Arguments
+- `priority`: The priority, as a string or integer (1-5).
+- `title`: The title, as a string.
+- `tags`: The tag/tags, as a string or vector of strings.
+- `click`: The action to take when clicked, as a string.
+- `attach`: URL of an attachment, as a string.
+- `actions`: Action button/buttons, as a string or list of strings.
+- `email`: Email address to also notify, as a string.
+- `delay`: Specify a time in the future to send the notification, as a string or `DateTime` or `Period`.
+- `markdown`: Set to `true` if the `message` is markdown-formatted, for richer display.
+- `extra_headers`: Extra headers to send to `ntfy.sh`.
+- `base_url`: Alternative server URL.
+- `auth`: Authorisation credentials, either a token (as a string) or a username and password (tuple of two strings).
+- `nothrow`: Set to `true` to suppress any exceptions and instead log a warning message.
+  Useful to prevent a long-running script from failing just because `ntfy.sh` is down,
+  for example.
+
+!!! example
+
+    ```julia
+    ntfy(
+        "phil_alerts",
+        "Remote access detected. Act right away.";
+        priority = "urgent",
+        title = "Unauthorized access detected",
+        tags = ["warning", "skull"],
+        delay = "tomorrow, 10am",
+        auth = ("phil", "supersecret"),
+    )
+    ```
+
+!!! tip
+
+    Use the `nothrow=true` argument to prevent a long-running script from failing if
+    `ntfy()` fails for some reason (e.g. if `ntfy.sh` is down). It will emit a warning
+    instead.
+
+# Extended help
+
+## Configuration
+
+Keyword arguments take precendence, but some default values can be configured via
+preferences (in the sense of Preferences.jl) or environment variables.
+
+`base_url`: This is `$DEFAULT_BASE_URL` by default but can be set with the
+`$BASE_URL_PREFERENCE` preference or the `$BASE_URL_ENVIRONMENT` environment variable.
+
+`auth`: By default no auth is used, but can be set with one of:
+- Auth token: `$TOKEN_PREFERENCE` preference or `$TOKEN_ENVIRONMENT` environment variable.
+- Username & password: `$USER_PREFERENCE` and `$PASSWORD_PREFERENCE` preferences or `$USER_ENVIRONMENT` and
+  `$PASSWORD_ENVIRONMENT` environment variables.
+
+## Extensions
+
+`Markdown`: The message can also be a `md"..."` string, in which case `markdown=true` is
+set automatically.
+
+`Dates`: The `delay` can  `DateTime`, `Date`, `Nanosecond`, `Microsecond`,
+`Millisecond`, `Second`, `Minute`, `Hour`.
 """
 function ntfy(topic, message; priority=nothing, title=nothing, tags=nothing, click=nothing,
         attach=nothing, actions=nothing, email=nothing, delay=nothing, markdown=nothing,
@@ -304,37 +347,59 @@ function request(handler::DummyRequestHandler, req)
 end
 
 """
-    ntfy(f::Function, topic, message; ...)
+    ntfy(f:Function, topic, message; ...)
 
-Invoke `f` and publish its output (or error) to `topic`. Success notifications use the
-`message` and related arguments, while error notifications use the corresponding
-`error_` variants. Function-valued arguments receive an `info` named tuple with
-`value`, `is_error`, and `time_ns` fields. Template-capable types (such as
-Mustache templates provided by the Mustache.jl extension) are rendered via
-`render_template`.
+Call `f()` then `ntfy(topic, message; ...)` then return `f()`.
 
-# Keyword Arguments
-- `error_message`
-- `title`
-- `error_title`
-- `tags`
-- `error_tags`
-- `priority`
-- `error_priority`
-- `click`
-- `error_click`
-- `attach`
-- `error_attach`
-- `actions`
-- `error_actions`
-- `email`
-- `error_email`
-- `delay`
-- `error_delay`
-- `markdown`
-- `error_markdown`
-- `nothrow`
-- `kwargs...`
+If `f()` throws an exception then `ntfy()` is still called before the exception is
+propagated.
+
+Keyword arguments and templating can be used to format the message and other fields to
+incorporate success/error information and the return value or thrown exception.
+
+!!! example
+
+    This is most useful with Julia's do-notation:
+
+    ```julia
+    ntfy("mytopic", "Success"; error_message="Error", title="Job #123", error_priority=5, nothrow=true) do
+        # some long-running task that might fail
+        sleep(10)
+        rand(Bool) ? 123 : error("kaboom")
+    end
+    ```
+
+# Extended help
+
+## Keyword Arguments
+
+Takes the same keyword arguments as `ntfy(topic, message)`.
+
+Also takes the following keyword arguments to format the notification differently in the
+case where `f()` throws an exception: `error_message`, `error_title`, `error_tags`,
+`error_priority`, `error_click`, `error_attach`, `error_actions`, `error_email`,
+`error_delay`, `error_markdown`.
+
+## Templating
+
+The `message` and `title` (and `error_message` and `error_title`) arguments can take a
+template from StringTemplates.jl, Mustache.jl or OteraEngine.jl, in which case it will
+be formatted with the following values:
+- `is_error`: `true` if an error occurred.
+- `success`: The string `"success"` or `"error"`. Also `Success` and `SUCCESS` to get
+  these words with a different capitalisation.
+- `value`: The value, stringified with `show` (or `showerror` for exceptions).
+- `value_md`: The value, stringified as markdown (to use with arg `markdown=true`).
+- `time`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
+- `time_ns`, `time_us`, `time_ms`, `time_s`, `time_m`, `time_h`, `time_d`: The elapsed
+  time in the given units, as a string with at most 3 significant figures.
+
+For more fine-grained formatting, the `message` and most keyword arguments can also take
+a function value. In this case the argument is called like `arg(info)` to get its value,
+where `info` has these fields:
+- `is_error`: `true` if an error occurred.
+- `value`: The return value of `f()`, or the exception it threw.
+- `time_ns`: The elapsed time in nanoseconds.
 """
 function ntfy(f::Function, topic, message;
         error_message=message,
