@@ -233,10 +233,13 @@ end
             ["X-Actions" => "http, Do, https://api, headers.foo=bar, headers.baz=true"]
         @test Ntfy.handle_actions!(copy(headers), Expr(:tuple, :view, Expr(:(=), "header", "value"))) ==
             ["X-Actions" => "view, header=value"]
+        @test_throws ErrorException Ntfy.format_action(123)
         @test_throws ErrorException Ntfy.handle_actions!(headers, :(view, "He said \"hi\" and it's ok"))
         @test_throws ErrorException Ntfy.handle_actions!(headers, Expr(:tuple, :view, Expr(:(=), 1, "value")))
         @test_throws ErrorException Ntfy.handle_actions!(headers, Expr(:tuple, :view, Expr(:(=), :data, Expr(:tuple, 1, 2))))
         @test_throws ErrorException Ntfy.handle_actions!(headers, 42)
+
+        @test_throws ErrorException Ntfy.handle_email!(headers, 123)
 
         @test Ntfy.handle_extra_headers!(copy(headers), Dict("X-Custom" => "1")) == ["X-Custom" => "1"]
         @test_throws ErrorException Ntfy.handle_extra_headers!(headers, 42)
