@@ -465,6 +465,23 @@ end
     end
     @test req.body == "override message"
 
+    handler = Ntfy.DummyRequestHandler(status = 500)
+    backup_io = IOBuffer()
+    backup_logger = Logging.SimpleLogger(backup_io, Logging.Info)
+    logger = Ntfy.NtfyLogger(
+        "log-topic";
+        request_handler=handler,
+        nothrow=true,
+        backup_logger=backup_logger,
+    )
+    with_logger(logger) do
+        @info "hello backup"
+    end
+    @test length(handler.requests) == 1
+    backup_output = String(take!(backup_io))
+    @test occursin("ntfy() failed", backup_output)
+    @test !occursin("hello backup", backup_output)
+
     handler = Ntfy.DummyRequestHandler()
     logger = Ntfy.NtfyLogger("disabled-topic"; enabled=false, request_handler=handler)
     with_logger(logger) do
