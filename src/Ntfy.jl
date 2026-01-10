@@ -64,6 +64,7 @@ struct NtfyLogger <: AbstractLogger
     base_url::Any
     auth::Any
     request_handler::Any
+    backup_logger::AbstractLogger
     nothrow::Any
 end
 
@@ -71,16 +72,18 @@ end
     NtfyLogger(topic=nothing, min_level=Info; message=nothing, enabled=topic !== nothing, kwargs...)
 
 Construct a new `NtfyLogger`, defaulting `enabled` to `true` when a topic is
-provided. Remaining keyword arguments map to `ntfy` arguments.
+provided. Remaining keyword arguments map to `ntfy` arguments. `backup_logger` is
+used while the logger forwards messages to `ntfy`, preventing `ntfy` warnings
+from being routed back into this logger.
 """
 function NtfyLogger(topic=nothing, min_level=Logging.Info; message=nothing,
         enabled=topic !== nothing, priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         markdown=nothing, extra_headers=nothing, base_url=nothing, auth=nothing,
-        request_handler=nothing, nothrow=nothing)
+        request_handler=nothing, backup_logger=Logging.SimpleLogger(), nothrow=nothing)
     return NtfyLogger(topic, min_level, message, enabled, priority, title, tags,
         click, attach, actions, email, delay, markdown, extra_headers, base_url,
-        auth, request_handler, nothrow)
+        auth, request_handler, backup_logger, nothrow)
 end
 
 """
@@ -165,21 +168,23 @@ function Logging.handle_message(
     resolved_nothrow = resolve_log_value(get(kwargs, :ntfy_nothrow, logger.nothrow), info)
     resolved_nothrow = resolved_nothrow === nothing ? false : resolved_nothrow
 
-    ntfy(resolved_topic, resolved_message;
-        title=resolved_title,
-        tags=resolved_tags,
-        priority=resolved_priority,
-        click=resolved_click,
-        attach=resolved_attach,
-        actions=resolved_actions,
-        email=resolved_email,
-        delay=resolved_delay,
-        markdown=resolved_markdown,
-        extra_headers=resolved_extra_headers,
-        base_url=resolved_base_url,
-        auth=resolved_auth,
-        request_handler=resolved_request_handler,
-        nothrow=resolved_nothrow)
+    Logging.with_logger(logger.backup_logger) do
+        ntfy(resolved_topic, resolved_message;
+            title=resolved_title,
+            tags=resolved_tags,
+            priority=resolved_priority,
+            click=resolved_click,
+            attach=resolved_attach,
+            actions=resolved_actions,
+            email=resolved_email,
+            delay=resolved_delay,
+            markdown=resolved_markdown,
+            extra_headers=resolved_extra_headers,
+            base_url=resolved_base_url,
+            auth=resolved_auth,
+            request_handler=resolved_request_handler,
+            nothrow=resolved_nothrow)
+    end
     return nothing
 end
 
