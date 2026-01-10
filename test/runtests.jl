@@ -293,157 +293,6 @@ end
     end
 end
 
-@testset "template view" begin
-    struct MarkdownValue
-        text::String
-    end
-    Base.show(io::IO, ::MIME"text/plain", value::MarkdownValue) = print(io, value.text)
-    Base.show(io::IO, ::MIME"text/markdown", value::MarkdownValue) = print(io, "**", value.text, "**")
-
-    struct BrokenMarkdownValue
-        text::String
-    end
-    Base.show(io::IO, ::MIME"text/plain", value::BrokenMarkdownValue) = print(io, value.text)
-    Base.show(::IO, ::MIME"text/markdown", ::BrokenMarkdownValue) = error("no markdown support")
-
-    info = (value=MarkdownValue("bold"), is_error=false, time=1.234)
-    template = :"plain $value md $value_md $success $SUCCESS $Success $time"
-    @test Ntfy.render_template(template, info) ==
-          "plain bold md **bold** success SUCCESS Success 1.23 s"
-
-    fallback_info = (value=BrokenMarkdownValue("plain"), is_error=false, time=0.0)
-    fallback_template = :"md $value_md"
-    @test Ntfy.render_template(fallback_template, fallback_info) == "md ```\nplain\n```"
-
-    err = ErrorException("boom")
-    err_info = (value=err, is_error=true, time=1.2e-6)
-    err_template = :"error $value"
-    @test occursin("boom", Ntfy.render_template(err_template, err_info))
-
-    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=86400.0)) ==
-          "elapsed 1 d"
-    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=3600.0)) ==
-          "elapsed 1 h"
-    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=60.0)) ==
-          "elapsed 1 m"
-    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=1.23)) ==
-          "elapsed 1.23 s"
-    @test Ntfy.render_template(:"elapsed $time", (value=0, is_error=false, time=0.0)) ==
-          "elapsed 0 s"
-
-    struct FancyError <: Exception
-        msg::String
-    end
-    Base.show(io::IO, err::FancyError) = print(io, "show:", err.msg)
-    Base.showerror(io::IO, err::FancyError) = print(io, "showerror:", err.msg)
-    fancy_info = (value=FancyError("fail"), is_error=true, time=0.0)
-    @test Ntfy.render_template(:"$value", fancy_info) == "showerror:fail"
-    @test Ntfy.render_template(:"$value_md", fancy_info) == "```\nshowerror:fail\n```"
-    @test_throws ErrorException Ntfy.render_template(:(value + 1), info)
-    @test_throws ErrorException Ntfy.render_template(Expr(:string, "bad ", 1), info)
-    @test_throws ErrorException Ntfy.render_template(:"$unknown", info)
-end
-
-@testset "do-notation" begin
-    handler = Ntfy.DummyRequestHandler()
-
-    result = Ntfy.ntfy(
-        "dummy-topic",
-        :"result $value - $SUCCESS";
-        title = :"overall $Success",
-        request_handler=handler,
-    ) do
-        99
-    end
-    @test result === 99
-    @test handler.requests[1].body == "result 99 - SUCCESS"
-    @test Dict(handler.requests[1].headers)["X-Title"] == "overall Success"
-
-    @test_throws ErrorException Ntfy.ntfy(
-        "dummy-topic",
-        :"ok $value";
-        error_message = :"failed $SUCCESS: $value",
-        title = :"failing $SUCCESS",
-        error_title = :"error $Success",
-        error_priority = 5,
-        error_tags = ["fire"],
-        request_handler=handler,
-    ) do
-        error("kaboom")
-    end
-    @test occursin("kaboom", handler.requests[end].body)
-    @test Dict(handler.requests[end].headers)["X-Title"] == "error Error"
-    @test Dict(handler.requests[end].headers)["X-Priority"] == "5"
-    @test Dict(handler.requests[end].headers)["X-Tags"] == "fire"
-
-    handler = Ntfy.DummyRequestHandler()
-    message_template = :"message $value $success"
-    title_template = :"title $Success"
-    result = Ntfy.ntfy("dummy-topic", message_template; title=title_template, request_handler=handler) do
-        42
-    end
-    @test result == 42
-    @test handler.requests[end].body == "message 42 success"
-    @test Dict(handler.requests[end].headers)["X-Title"] == "title Success"
-
-    handler = Ntfy.DummyRequestHandler()
-    error_message_template = :"error $value"
-    error_title_template = :"title $SUCCESS"
-    @test_throws ErrorException Ntfy.ntfy(
-        "dummy-topic",
-        "unused";
-        error_message=error_message_template,
-        error_title=error_title_template,
-        request_handler=handler,
-    ) do
-        error("boom")
-    end
-    @test occursin("boom", handler.requests[end].body)
-    @test Dict(handler.requests[end].headers)["X-Title"] == "title ERROR"
-
-    Ntfy.ntfy("dummy-topic", "no title formatting"; title = :unchanged, request_handler=handler) do
-        :ok
-    end
-    @test Dict(handler.requests[end].headers)["X-Title"] == "unchanged"
-
-    handler = Ntfy.DummyRequestHandler()
-    Ntfy.ntfy("dummy-topic", "literal {{value}}"; request_handler=handler) do
-        123
-    end
-    @test handler.requests[end].body == "literal {{value}}"
-
-    handler = Ntfy.DummyRequestHandler()
-    result = Ntfy.ntfy(
-        "dummy-topic",
-        info -> "literal {{ value }}";
-        title = info -> "title {{ Success }}",
-        tags = info -> ["tag-$(info.value)"],
-        priority = info -> 3,
-        click = info -> "https://example.com/$(info.value)",
-        attach = info -> "https://example.com/$(info.value).txt",
-        actions = info -> ["view, $(info.value)"],
-        email = info -> "user$(info.value)@example.com",
-        delay = info -> "1h",
-        markdown = info -> true,
-        request_handler = handler,
-    ) do
-        7
-    end
-    @test result == 7
-    req = only(handler.requests)
-    @test req.body == "literal {{ value }}"
-    headers = Dict(req.headers)
-    @test headers["X-Title"] == "title {{ Success }}"
-    @test headers["X-Tags"] == "tag-7"
-    @test headers["X-Priority"] == "3"
-    @test headers["X-Click"] == "https://example.com/7"
-    @test headers["X-Attach"] == "https://example.com/7.txt"
-    @test headers["X-Actions"] == "view, 7"
-    @test headers["X-Email"] == "user7@example.com"
-    @test headers["X-Delay"] == "1h"
-    @test headers["X-Markdown"] == "yes"
-end
-
 @testset "logging" begin
     req = with_dummy_ntfy_logger(topic="log-topic") do
         @info "hello world" foo=1
@@ -514,28 +363,13 @@ end
     @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "boom"; request_handler = handler, nothrow = true)
     @test length(handler.requests) == 1
 
-    handler = Ntfy.DummyRequestHandler(status = 500)
-    @test_throws ErrorException Ntfy.ntfy("dummy-topic", "result {{ value }}"; request_handler = handler) do
-        7
-    end
-    @test length(handler.requests) == 1
-
-    handler = Ntfy.DummyRequestHandler(status = 500)
-    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", "result {{ value }}"; request_handler = handler, nothrow = true) do
-        123
-    end
-    @test result == 123
-    @test length(handler.requests) == 1
-
     handler = Ntfy.DummyRequestHandler()
     result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy(123, "bad topic"; request_handler = handler, nothrow = true)
     @test result === nothing
     @test isempty(handler.requests)
 
     handler = Ntfy.DummyRequestHandler()
-    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", 123; request_handler = handler, nothrow = true) do
-        42
-    end
-    @test result == 42
+    result = @test_logs (:warn, r"ntfy\(\) failed") Ntfy.ntfy("dummy-topic", 123; request_handler = handler, nothrow = true)
+    @test result === nothing
     @test isempty(handler.requests)
 end

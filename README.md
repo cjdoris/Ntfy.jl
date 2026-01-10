@@ -32,14 +32,6 @@ ntfy(
     auth = ("phil", "supersecret"),
 )
 
-# Notify when a long-running task finishes or errors
-ntfy("job_status", :"$SUCCESS: $value";
-  title="Job #12", error_tags="bangbang"
-) do
-    sleep(10)
-    rand(Bool) ? 999 : error("kaboom")
-end
-
 # Send Markdown content directly
 using Markdown
 ntfy("release_notes", md"## v1.0.1\n- Added ntfy Markdown helper"; priority=3)
@@ -76,46 +68,6 @@ Publish a notification to `topic` with `message` via the `ntfy.sh` service.
   Useful to prevent a long-running script from failing just because `ntfy.sh` is down,
   for example.
 
-### `ntfy(f::Function, topic, message; ...)`
-
-Call `f()` then `ntfy(topic, message; ...)` then return `f()`. This is intended to be
-used with Julia's `do` notation.
-
-If `f()` throws an exception then `ntfy()` is still called before the exception is
-propagated.
-
-Keyword arguments and templating can be used to format the message and other fields to
-incorporate success/error information and the return value or thrown exception.
-
-#### Keyword Arguments
-
-Takes the same keyword arguments as `ntfy(topic, message)`.
-
-Also takes the following keyword arguments to format the notification differently in the
-case where `f()` throws an exception: `error_message`, `error_title`, `error_tags`,
-`error_priority`, `error_click`, `error_attach`, `error_actions`, `error_email`,
-`error_delay`, `error_markdown`.
-
-#### Templating
-
-The `message` and `title` (and `error_message` and `error_title`) arguments can take a
-simple interpolated string expression like `:"$SUCCESS: $value"`. The expression
-must have head `:string` and contain only string and symbol arguments. The supported
-template symbols are:
-- `success`: The string `"success"` or `"error"`. Also `Success` and `SUCCESS` to get
-  these words with a different capitalisation.
-- `value`: The return value of `f()` or the exception it threw, stringified with
-  `show` (or `showerror` for exceptions).
-- `value_md`: The value, stringified as markdown (to use with arg `markdown=true`).
-- `time`: The elapsed time, as a human-readable string like `123s` or `4.56h`.
-
-For more fine-grained formatting, the `message` and most keyword arguments can also take
-a function value. In this case the argument is called like `arg(info)` to get its value,
-where `info` has these fields:
-- `is_error`: `true` if an error occurred.
-- `value`: The return value of `f()`, or the exception it threw.
-- `time`: The elapsed time in seconds.
-
 ### `NtfyLogger(topic=nothing, min_level=Info; ...)`
 
 Create a `Logging.AbstractLogger` that forwards log messages to ntfy. Set it as
@@ -148,6 +100,3 @@ automatically.
 
 [Dates.jl](https://docs.julialang.org/en/v1/stdlib/Dates/):
 The `delay` can be a `DateTime`, `Date`, `Second`, `Minute`, `Hour` or `Day`.
-
-The `message` and `title` of the 3-arg `ntfy` can be a simple interpolated string
-expression (`Expr` with head `:string`). See the docstring for more info.
