@@ -83,115 +83,15 @@ handle_attach!(headers, ::Any) = error("Unsupported attach type")
 Add an `X-Actions` header to `headers` when `actions` is provided.
 """
 handle_actions!(headers, ::Nothing) = headers
-"""
-    quote_action_value(value)
-
-Quote action values that contain commas, semicolons, or quotes.
-"""
-function quote_action_value(value::AbstractString)
-    if any(ch -> ch in (',', ';', '\'', '"'), value)
-        if !occursin("'", value)
-            return string("'", value, "'")
-        elseif !occursin("\"", value)
-            return string("\"", value, "\"")
-        else
-            error("Action value contains both single and double quotes: $(value)")
-        end
-    end
-    return value
-end
-
-"""
-    format_action_value(value)
-
-Format a single action value, quoting it when necessary.
-"""
-function format_action_value(value)
-    if value isa AbstractString
-        return quote_action_value(convert(String, value))
-    elseif value isa Symbol
-        return quote_action_value(String(value))
-    elseif value isa Bool || value isa Number
-        return quote_action_value(string(value))
-    else
-        error("Unsupported action value type: $(typeof(value))")
-    end
-end
-
-"""
-    format_action_key(key)
-
-Format an action key used in `key=value` entries.
-"""
-function format_action_key(key)
-    if key isa AbstractString
-        return convert(String, key)
-    elseif key isa Symbol
-        return String(key)
-    else
-        error("Unsupported action key type: $(typeof(key))")
-    end
-end
-
-"""
-    is_named_tuple_expr(expr)
-
-Return `true` when `expr` represents a named tuple literal.
-"""
-function is_named_tuple_expr(expr::Expr)
-    return expr.head == :tuple && all(arg -> arg isa Expr && arg.head in (:kw, :(=)), expr.args)
-end
-
-"""
-    action_entries(action_args)
-
-Return action entries rendered from the provided action arguments.
-"""
-function action_entries(action_args)
-    entries = String[]
-    for arg in action_args
-        if arg isa Expr && arg.head in (:kw, :(=))
-            key = format_action_key(arg.args[1])
-            value = arg.args[2]
-            if value isa Expr && is_named_tuple_expr(value)
-                for entry in value.args
-                    subkey = format_action_key(entry.args[1])
-                    subvalue = format_action_value(entry.args[2])
-                    push!(entries, "$(key).$(subkey)=$(subvalue)")
-                end
-            else
-                push!(entries, "$(key)=$(format_action_value(value))")
-            end
-        else
-            push!(entries, format_action_value(arg))
-        end
-    end
-    return entries
-end
-
-"""
-    format_action(action)
-
-Format a single action definition.
-"""
-format_action(action::AbstractString) = convert(String, action)
-function format_action(action::Expr)
-    action.head == :tuple || error("Unsupported action expression type: $(action.head)")
-    return join(action_entries(action.args), ", ")
-end
-function format_action(action::Tuple)
-    return join(action_entries(action), ", ")
-end
-format_action(::Any) = error("Unsupported action type")
 
 function handle_actions!(headers, actions::AbstractString)
     push!(headers, "X-Actions" => convert(String, actions))
     return headers
 end
-handle_actions!(headers, actions::Expr) = handle_actions!(headers, format_action(actions))
-handle_actions!(headers, actions::Tuple) = handle_actions!(headers, format_action(actions))
 function handle_actions!(headers, actions::AbstractVector)
-    formatted = [format_action(action) for action in actions]
+    all(action -> action isa AbstractString, actions) ||
+        error("Unsupported actions type")
+    formatted = [convert(String, action) for action in actions]
     return handle_actions!(headers, join(formatted, "; "))
 end
 handle_actions!(headers, ::Any) = error("Unsupported actions type")
