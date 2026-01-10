@@ -68,12 +68,12 @@ struct NtfyLogger <: AbstractLogger
 end
 
 """
-    NtfyLogger(; topic=nothing, min_level=Info, message=nothing, enabled=topic !== nothing, kwargs...)
+    NtfyLogger(topic=nothing, min_level=Info; message=nothing, enabled=topic !== nothing, kwargs...)
 
 Construct a new `NtfyLogger`, defaulting `enabled` to `true` when a topic is
 provided. Remaining keyword arguments map to `ntfy` arguments.
 """
-function NtfyLogger(; topic=nothing, min_level=Logging.Info, message=nothing,
+function NtfyLogger(topic=nothing, min_level=Logging.Info; message=nothing,
         enabled=topic !== nothing, priority=nothing, title=nothing, tags=nothing,
         click=nothing, attach=nothing, actions=nothing, email=nothing, delay=nothing,
         markdown=nothing, extra_headers=nothing, base_url=nothing, auth=nothing,

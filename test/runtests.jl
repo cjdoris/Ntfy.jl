@@ -25,6 +25,19 @@ function dummy_ntfy(args...; kwargs...)
     return only(handler.requests)
 end
 
+"""
+    with_dummy_ntfy_logger(f; topic=nothing, min_level=Logging.Info, kwargs...)
+
+Create a `NtfyLogger` and `DummyRequestHandler`, run `f` with the logger, and
+return the captured request.
+"""
+function with_dummy_ntfy_logger(f; topic=nothing, min_level=Logging.Info, kwargs...)
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic, min_level; kwargs..., request_handler=handler)
+    with_logger(f, logger)
+    return only(handler.requests)
+end
+
 @testset "ntfy" begin
     @testset "defaults" begin
         req = dummy_ntfy("mytopic", "Backup successful 😀")
@@ -432,52 +445,40 @@ end
 end
 
 @testset "logging" begin
-    handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic="log-topic", request_handler=handler)
-    with_logger(logger) do
+    req = with_dummy_ntfy_logger(topic="log-topic") do
         @info "hello world" foo=1
     end
-    @test length(handler.requests) == 1
-    req = only(handler.requests)
     @test req.url == "https://ntfy.sh/log-topic"
     @test occursin("hello world", req.body)
     @test occursin("foo", req.body)
     @test !occursin("ntfy_topic", req.body)
 
-    handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic="base-topic", request_handler=handler, message=info -> "logger $(info.message)")
-    with_logger(logger) do
+    req = with_dummy_ntfy_logger(topic="base-topic", message=info -> "logger $(info.message)") do
         @info "hi" foo=2 ntfy_topic="override-topic" ntfy_title=info -> "title $(info.kwargs.foo)"
     end
-    req = only(handler.requests)
     @test req.url == "https://ntfy.sh/override-topic"
     @test req.body == "logger hi"
     @test Dict(req.headers)["X-Title"] == "title 2"
 
-    handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic="base-topic", request_handler=handler, message="base message")
-    with_logger(logger) do
+    req = with_dummy_ntfy_logger(topic="base-topic", message="base message") do
         @info "ignored" ntfy_message="override message"
     end
-    req = only(handler.requests)
     @test req.body == "override message"
 
     handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic="disabled-topic", enabled=false, request_handler=handler)
+    logger = Ntfy.NtfyLogger("disabled-topic"; enabled=false, request_handler=handler)
     with_logger(logger) do
         @info "skip" ntfy=false
     end
     @test isempty(handler.requests)
 
-    handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic="disabled-topic", enabled=false, request_handler=handler)
-    with_logger(logger) do
+    req = with_dummy_ntfy_logger(; topic="disabled-topic", enabled=false) do
         @info "send" ntfy=true
     end
-    @test length(handler.requests) == 1
+    @test req.url == "https://ntfy.sh/disabled-topic"
 
     handler = Ntfy.DummyRequestHandler()
-    logger = Ntfy.NtfyLogger(topic=nothing, enabled=true, request_handler=handler)
+    logger = Ntfy.NtfyLogger(nothing; enabled=true, request_handler=handler)
     @test_throws ErrorException Logging.handle_message(
         logger,
         Logging.Info,
