@@ -43,6 +43,13 @@ end
 # Send Markdown content directly
 using Markdown
 ntfy("release_notes", md"## v1.0.1\n- Added ntfy Markdown helper"; priority=3)
+
+# Forward log records to ntfy
+using Logging
+logger = NtfyLogger(topic="service_logs", title="service")
+with_logger(logger) do
+    @info "Started background job" job_id=123
+end
 ```
 
 ## API
@@ -108,6 +115,16 @@ where `info` has these fields:
 - `is_error`: `true` if an error occurred.
 - `value`: The return value of `f()`, or the exception it threw.
 - `time`: The elapsed time in seconds.
+
+### `NtfyLogger(topic=nothing, min_level=Info; ...)`
+
+Create a `Logging.AbstractLogger` that forwards log messages to ntfy. Set it as
+the active logger with `with_logger` or `global_logger` and use ordinary logging
+macros like `@info`.
+
+The logger accepts the same keyword arguments as `ntfy`, along with `message` and
+`enabled`. Log-time keyword arguments prefixed with `ntfy_` override fields on the
+logger, and `ntfy=true/false` overrides the `enabled` setting.
 
 ### Configuration
 

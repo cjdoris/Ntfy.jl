@@ -4,6 +4,7 @@ using Downloads
 using Markdown
 using Preferences
 using Base64
+using Logging
 using Ntfy
 
 ENV["JULIA_PREFERENCES_PATH"] = mktempdir()
@@ -428,6 +429,65 @@ end
     @test headers["X-Email"] == "user7@example.com"
     @test headers["X-Delay"] == "1h"
     @test headers["X-Markdown"] == "yes"
+end
+
+@testset "logging" begin
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic="log-topic", request_handler=handler)
+    with_logger(logger) do
+        @info "hello world" foo=1
+    end
+    @test length(handler.requests) == 1
+    req = only(handler.requests)
+    @test req.url == "https://ntfy.sh/log-topic"
+    @test occursin("hello world", req.body)
+    @test occursin("foo", req.body)
+    @test !occursin("ntfy_topic", req.body)
+
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic="base-topic", request_handler=handler, message=info -> "logger $(info.message)")
+    with_logger(logger) do
+        @info "hi" foo=2 ntfy_topic="override-topic" ntfy_title=info -> "title $(info.kwargs.foo)"
+    end
+    req = only(handler.requests)
+    @test req.url == "https://ntfy.sh/override-topic"
+    @test req.body == "logger hi"
+    @test Dict(req.headers)["X-Title"] == "title 2"
+
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic="base-topic", request_handler=handler, message="base message")
+    with_logger(logger) do
+        @info "ignored" ntfy_message="override message"
+    end
+    req = only(handler.requests)
+    @test req.body == "override message"
+
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic="disabled-topic", enabled=false, request_handler=handler)
+    with_logger(logger) do
+        @info "skip" ntfy=false
+    end
+    @test isempty(handler.requests)
+
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic="disabled-topic", enabled=false, request_handler=handler)
+    with_logger(logger) do
+        @info "send" ntfy=true
+    end
+    @test length(handler.requests) == 1
+
+    handler = Ntfy.DummyRequestHandler()
+    logger = Ntfy.NtfyLogger(topic=nothing, enabled=true, request_handler=handler)
+    @test_throws ErrorException Logging.handle_message(
+        logger,
+        Logging.Info,
+        "missing topic",
+        @__MODULE__,
+        :group,
+        :id,
+        "file",
+        1,
+    )
 end
 
 @testset "nothrow" begin
