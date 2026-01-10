@@ -479,6 +479,7 @@ end
 
     handler = Ntfy.DummyRequestHandler()
     logger = Ntfy.NtfyLogger(nothing; enabled=true, request_handler=handler)
+    @test Logging.shouldlog(logger, Logging.Info, @__MODULE__, :group, :id)
     @test_throws ErrorException Logging.handle_message(
         logger,
         Logging.Info,
