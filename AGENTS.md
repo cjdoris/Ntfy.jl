@@ -10,7 +10,3 @@
 - After tests pass, rerun them with coverage enabled using `julia --project=. -e 'using Pkg; Pkg.test(coverage=true)'`. When
   editing code, add tests that aim for full coverage of the modified lines. If full coverage isn't practical, explain any
   remaining uncovered lines and why in the final report.
-- The `ntfy(f::Function, ...)` helper supports `error_` keyword variants and function-valued notification arguments to tailor
-  success/error notifications without templating the function return values.
-- Core templating uses interpolated string expressions (`Expr` with head `:string`) and supports only
-  `success`, `Success`, `SUCCESS`, `value`, `value_md`, and `time` keys.
